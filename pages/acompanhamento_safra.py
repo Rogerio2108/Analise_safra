@@ -21,9 +21,17 @@ from pathlib import Path
 import numpy as np
 from datetime import date, datetime, timedelta
 import json
-import requests
-from bs4 import BeautifulSoup
 import re
+
+# Imports opcionais para busca de preços
+try:
+    import requests
+    from bs4 import BeautifulSoup
+    REQUESTS_AVAILABLE = True
+except ImportError:
+    REQUESTS_AVAILABLE = False
+    # Não mostra warning aqui para evitar erro durante o import
+    # O warning será mostrado apenas quando o usuário tentar usar a funcionalidade
 from Dados_base import (
     DATA_FILES,
     DESCONTO_VHP_FOB,
@@ -61,6 +69,10 @@ def buscar_dolar_bacen(data_corte=None):
     Returns:
         float: Cotação USD/BRL ou None em caso de erro
     """
+    if not REQUESTS_AVAILABLE:
+        st.error("❌ Bibliotecas necessárias não estão instaladas. Instale: pip install requests beautifulsoup4")
+        return None
+
     try:
         if data_corte is None:
             data_corte = date.today()
@@ -114,6 +126,10 @@ def buscar_ny11_investing(data_corte=None):
     Returns:
         float: Cotação NY11 em USc/lb ou None em caso de erro
     """
+    if not REQUESTS_AVAILABLE:
+        st.error("❌ Bibliotecas necessárias não estão instaladas. Instale: pip install requests beautifulsoup4")
+        return None
+
     try:
         # Investing.com - Sugar #11 Futures
         # URL: https://www.investing.com/commodities/us-sugar-no11
