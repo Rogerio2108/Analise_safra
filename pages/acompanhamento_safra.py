@@ -55,6 +55,15 @@ def fmt_br(valor, casas=2):
         return ""
     return f"{valor:,.{casas}f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
+def safe_float(valor, default=0.0):
+    """Converte valor para float de forma segura"""
+    if valor is None:
+        return default
+    try:
+        return float(valor)
+    except (ValueError, TypeError):
+        return default
+
 # ============================================================================
 # FUNÇÕES DE BUSCA DE PREÇOS REAIS
 # ============================================================================
@@ -991,8 +1000,12 @@ with st.sidebar.expander("🌐 Buscar Preços Reais", expanded=False):
 usd_inicial_valor = st.session_state.get('usd_buscado', 4.90)
 ny11_inicial_valor = st.session_state.get('ny11_buscado', 14.90)
 
-ny11_inicial = st.sidebar.number_input("NY11 inicial (USc/lb)", value=float(ny11_inicial_valor), step=0.10, format="%.2f", key="ny11_inicial_input")
-usd_inicial = st.sidebar.number_input("USD/BRL inicial", value=float(usd_inicial_valor), step=0.01, format="%.4f", key="usd_inicial_input")
+# Converte valores com segurança para float
+usd_inicial_valor_safe = safe_float(usd_inicial_valor, 4.90)
+ny11_inicial_valor_safe = safe_float(ny11_inicial_valor, 14.90)
+
+ny11_inicial = st.sidebar.number_input("NY11 inicial (USc/lb)", value=ny11_inicial_valor_safe, step=0.10, format="%.2f", key="ny11_inicial_input")
+usd_inicial = st.sidebar.number_input("USD/BRL inicial", value=usd_inicial_valor_safe, step=0.01, format="%.4f", key="usd_inicial_input")
 etanol_inicial = st.sidebar.number_input("Etanol inicial (R$/m³)", value=2500.0, step=50.0, format="%.0f")
 
 with st.sidebar.expander("🔧 Parâmetros Avançados", expanded=False):
@@ -1151,11 +1164,15 @@ with st.expander("🌐 Buscar Preços Reais para esta Quinzena", expanded=False)
 usd_real_valor = st.session_state.pop('usd_buscado_real', valor_default_usd)
 ny11_real_valor = st.session_state.pop('ny11_buscado_real', valor_default_ny11)
 
+# Converte valores com segurança para float
+usd_real_valor_safe = safe_float(usd_real_valor, valor_default_usd)
+ny11_real_valor_safe = safe_float(ny11_real_valor, valor_default_ny11)
+
 col_preco1, col_preco2, col_preco3, col_preco4 = st.columns(4)
 with col_preco1:
-    usd_real = st.number_input("USD/BRL", value=float(usd_real_valor), step=0.0001, format="%.4f", key="usd_real_input")
+    usd_real = st.number_input("USD/BRL", value=usd_real_valor_safe, step=0.0001, format="%.4f", key="usd_real_input")
 with col_preco2:
-    ny11_real = st.number_input("NY11 (USc/lb)", value=float(ny11_real_valor), step=0.10, format="%.2f", key="ny11_real_input")
+    ny11_real = st.number_input("NY11 (USc/lb)", value=ny11_real_valor_safe, step=0.10, format="%.2f", key="ny11_real_input")
 with col_preco3:
     etanol_anidro_preco_real = st.number_input("Etanol Anidro (R$/m³)", value=valor_default_etanol_anidro_preco, step=10.0, format="%.0f", key="etanol_anidro_preco")
 with col_preco4:
