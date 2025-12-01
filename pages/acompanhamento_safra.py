@@ -78,11 +78,12 @@ def buscar_dolar_bacen(data_corte=None):
             data_corte = date.today()
 
         # API do Banco Central - Série de cotações diárias
-        # Código da série: 1 (USD)
-        # Formato da API: DD/MM/YYYY
+        # Código da série: 1 (USD - Taxa de câmbio livre - Dólar americano (venda))
+        # Formato da API: DD/MM/YYYY (formato brasileiro)
         data_str = data_corte.strftime('%d/%m/%Y')
 
         # URL da API do BCB - busca por período
+        # A API do BCB espera formato DD/MM/YYYY
         url = f"https://api.bcb.gov.br/dados/serie/bcdata.sgs.1/dados?formato=json&dataInicial={data_str}&dataFinal={data_str}"
 
         headers = {
@@ -97,8 +98,19 @@ def buscar_dolar_bacen(data_corte=None):
 
         if dados and len(dados) > 0:
             # Pega o último valor disponível
-            cotacao = float(dados[-1]['valor'])
-            return cotacao
+            # A API retorna o valor como string ou número
+            valor = dados[-1]['valor']
+
+            # Converte para float, tratando diferentes formatos
+            if isinstance(valor, str):
+                # Remove espaços, substitui vírgula por ponto
+                valor_str = valor.strip().replace(',', '.').replace(' ', '')
+                cotacao = float(valor_str)
+            else:
+                cotacao = float(valor)
+
+            # Retorna com precisão de 4 casas decimais
+            return round(cotacao, 4)
 
         # Se não encontrou na data específica, tenta buscar a última disponível
         url_ultima = "https://api.bcb.gov.br/dados/serie/bcdata.sgs.1/dados/ultimos/1?formato=json"
@@ -107,7 +119,13 @@ def buscar_dolar_bacen(data_corte=None):
         dados = response.json()
 
         if dados and len(dados) > 0:
-            return float(dados[0]['valor'])
+            valor = dados[0]['valor']
+            if isinstance(valor, str):
+                valor_str = valor.strip().replace(',', '.').replace(' ', '')
+                cotacao = float(valor_str)
+            else:
+                cotacao = float(valor)
+            return round(cotacao, 4)
 
         return None
     except Exception as e:
@@ -144,7 +162,8 @@ def buscar_ny11_yahoo_finance():
                 preco = meta.get('regularMarketPrice') or meta.get('previousClose')
                 if preco:
                     # Yahoo Finance retorna em cents/lb
-                    return float(preco)
+                    # Retorna com 2 casas decimais (precisão padrão para preços)
+                    return round(float(preco), 2)
 
         return None
     except Exception as e:
@@ -257,7 +276,8 @@ def buscar_ny11_investing(data_corte=None):
                     try:
                         valor = float(match)
                         if 10.0 <= valor <= 30.0:
-                            return valor
+                            # Retorna com 2 casas decimais (precisão padrão para preços)
+                            return round(valor, 2)
                     except ValueError:
                         continue
 
@@ -275,7 +295,8 @@ def buscar_ny11_investing(data_corte=None):
                     try:
                         valor = float(match)
                         if 10.0 <= valor <= 30.0:
-                            return valor
+                            # Retorna com 2 casas decimais (precisão padrão para preços)
+                            return round(valor, 2)
                     except ValueError:
                         continue
 
@@ -290,11 +311,12 @@ def buscar_ny11_investing(data_corte=None):
                 try:
                     valor = float(match)
                     if 10.0 <= valor <= 30.0:
-                        return valor
+                        # Retorna com 2 casas decimais (precisão padrão para preços)
+                        return round(valor, 2)
                 except ValueError:
                     continue
 
-        # Estratégia 4: Procurar em todo o texto da página
+        # Estratégia 4: Procurar em todo o texto da página por padrões
         texto_pagina = soup.get_text()
         # Procura por padrões mais específicos
         padroes = [
@@ -309,7 +331,8 @@ def buscar_ny11_investing(data_corte=None):
                 try:
                     valor = float(match)
                     if 10.0 <= valor <= 30.0:
-                        return valor
+                        # Retorna com 2 casas decimais (precisão padrão para preços)
+                        return round(valor, 2)
                 except ValueError:
                     continue
 
@@ -939,26 +962,37 @@ with st.sidebar.expander("🌐 Buscar Preços Reais", expanded=False):
                 usd_buscado = buscar_dolar_bacen(data_busca)
                 if usd_buscado:
                     st.session_state['usd_buscado'] = usd_buscado
-                    st.success(f"✅ USD/BRL: {usd_buscado:.2f}")
+                    st.session_state['usd_buscado_data'] = data_busca
+                    st.success(f"✅ USD/BRL encontrado: **{usd_buscado:.4f}**")
                 else:
                     st.error("❌ Não foi possível buscar o dólar")
 
     with col_busca2:
         if st.button("🍬 Buscar NY11", use_container_width=True, key="btn_buscar_ny11"):
-            with st.spinner("Buscando NY11 do Investing.com..."):
+            with st.spinner("Buscando NY11..."):
                 ny11_buscado = buscar_ny11_investing(data_busca)
                 if ny11_buscado:
                     st.session_state['ny11_buscado'] = ny11_buscado
-                    st.success(f"✅ NY11: {ny11_buscado:.2f} USc/lb")
+                    st.session_state['ny11_buscado_data'] = data_busca
+                    st.success(f"✅ NY11 encontrado: **{ny11_buscado:.2f}** USc/lb")
                 else:
                     st.error("❌ Não foi possível buscar o NY11")
+
+    # Exibe valores encontrados se disponíveis
+    if 'usd_buscado' in st.session_state:
+        data_usd = st.session_state.get('usd_buscado_data', data_busca)
+        st.info(f"💵 **USD/BRL encontrado:** {st.session_state['usd_buscado']:.4f} (Data: {data_usd.strftime('%d/%m/%Y')})")
+
+    if 'ny11_buscado' in st.session_state:
+        data_ny11 = st.session_state.get('ny11_buscado_data', data_busca)
+        st.info(f"🍬 **NY11 encontrado:** {st.session_state['ny11_buscado']:.2f} USc/lb (Data: {data_ny11.strftime('%d/%m/%Y')})")
 
 # Usa valores buscados se disponíveis, senão usa valores padrão
 usd_inicial_valor = st.session_state.get('usd_buscado', 4.90)
 ny11_inicial_valor = st.session_state.get('ny11_buscado', 14.90)
 
-ny11_inicial = st.sidebar.number_input("NY11 inicial (USc/lb)", value=ny11_inicial_valor, step=0.10, format="%.2f", key="ny11_inicial_input")
-usd_inicial = st.sidebar.number_input("USD/BRL inicial", value=usd_inicial_valor, step=0.01, format="%.2f", key="usd_inicial_input")
+ny11_inicial = st.sidebar.number_input("NY11 inicial (USc/lb)", value=float(ny11_inicial_valor), step=0.10, format="%.2f", key="ny11_inicial_input")
+usd_inicial = st.sidebar.number_input("USD/BRL inicial", value=float(usd_inicial_valor), step=0.01, format="%.4f", key="usd_inicial_input")
 etanol_inicial = st.sidebar.number_input("Etanol inicial (R$/m³)", value=2500.0, step=50.0, format="%.0f")
 
 with st.sidebar.expander("🔧 Parâmetros Avançados", expanded=False):
@@ -1085,21 +1119,32 @@ with st.expander("🌐 Buscar Preços Reais para esta Quinzena", expanded=False)
                 usd_buscado_real = buscar_dolar_bacen(data_busca_real)
                 if usd_buscado_real:
                     st.session_state['usd_buscado_real'] = usd_buscado_real
-                    st.success(f"✅ USD/BRL: {usd_buscado_real:.2f}")
+                    st.session_state['usd_buscado_real_data'] = data_busca_real
+                    st.success(f"✅ USD/BRL encontrado: **{usd_buscado_real:.4f}**")
                     st.rerun()
                 else:
                     st.error("❌ Não foi possível buscar o dólar")
 
     with col_busca_real2:
         if st.button("🍬 Buscar NY11", use_container_width=True, key="btn_buscar_ny11_real"):
-            with st.spinner("Buscando NY11 do Investing.com..."):
+            with st.spinner("Buscando NY11..."):
                 ny11_buscado_real = buscar_ny11_investing(data_busca_real)
                 if ny11_buscado_real:
                     st.session_state['ny11_buscado_real'] = ny11_buscado_real
-                    st.success(f"✅ NY11: {ny11_buscado_real:.2f} USc/lb")
+                    st.session_state['ny11_buscado_real_data'] = data_busca_real
+                    st.success(f"✅ NY11 encontrado: **{ny11_buscado_real:.2f}** USc/lb")
                     st.rerun()
                 else:
                     st.error("❌ Não foi possível buscar o NY11")
+
+    # Exibe valores encontrados se disponíveis
+    if 'usd_buscado_real' in st.session_state:
+        data_usd_real = st.session_state.get('usd_buscado_real_data', data_busca_real)
+        st.info(f"💵 **USD/BRL encontrado:** {st.session_state['usd_buscado_real']:.4f} (Data: {data_usd_real.strftime('%d/%m/%Y')})")
+
+    if 'ny11_buscado_real' in st.session_state:
+        data_ny11_real = st.session_state.get('ny11_buscado_real_data', data_busca_real)
+        st.info(f"🍬 **NY11 encontrado:** {st.session_state['ny11_buscado_real']:.2f} USc/lb (Data: {data_ny11_real.strftime('%d/%m/%Y')})")
 
 # Usa valores buscados se disponíveis, senão usa valores padrão
 # Limpa após usar para não persistir
@@ -1108,9 +1153,9 @@ ny11_real_valor = st.session_state.pop('ny11_buscado_real', valor_default_ny11)
 
 col_preco1, col_preco2, col_preco3, col_preco4 = st.columns(4)
 with col_preco1:
-    usd_real = st.number_input("USD/BRL", value=usd_real_valor, step=0.01, format="%.2f", key="usd_real_input")
+    usd_real = st.number_input("USD/BRL", value=float(usd_real_valor), step=0.0001, format="%.4f", key="usd_real_input")
 with col_preco2:
-    ny11_real = st.number_input("NY11 (USc/lb)", value=ny11_real_valor, step=0.10, format="%.2f", key="ny11_real_input")
+    ny11_real = st.number_input("NY11 (USc/lb)", value=float(ny11_real_valor), step=0.10, format="%.2f", key="ny11_real_input")
 with col_preco3:
     etanol_anidro_preco_real = st.number_input("Etanol Anidro (R$/m³)", value=valor_default_etanol_anidro_preco, step=10.0, format="%.0f", key="etanol_anidro_preco")
 with col_preco4:
