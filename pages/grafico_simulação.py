@@ -181,9 +181,6 @@ def criar_grafico_precos(df, ny11_inicial, usd_inicial, etanol_inicial):
 
     # ========== CONFIGURAÇÃO DE LAYOUT ==========
     fig.update_layout(
-        yaxis=dict(title="<b>NY11 (USc/lb)</b>", side="left", titlefont=dict(size=12)),
-        yaxis2=dict(title="<b>USD/BRL</b>", side="right", overlaying="y", titlefont=dict(size=12)),
-        yaxis3=dict(title="<b>Etanol (R$/m³)</b>", side="left", titlefont=dict(size=12)),
         height=800,
         hovermode='x unified',
         template='plotly_white',
@@ -206,6 +203,10 @@ def criar_grafico_precos(df, ny11_inicial, usd_inicial, etanol_inicial):
     # Configuração de eixos X e Y
     fig.update_xaxes(title_text="<b>Data</b>", row=1, col=1, titlefont=dict(size=12), tickangle=-45, nticks=8)
     fig.update_xaxes(title_text="<b>Data</b>", row=2, col=1, titlefont=dict(size=12), tickangle=-45, nticks=8)
+
+    # Configuração dos eixos Y (usando update_yaxes para subplots com secondary_y)
+    fig.update_yaxes(title_text="<b>NY11 (USc/lb)</b>", row=1, col=1, secondary_y=False, titlefont=dict(size=12))
+    fig.update_yaxes(title_text="<b>USD/BRL</b>", row=1, col=1, secondary_y=True, titlefont=dict(size=12))
     fig.update_yaxes(title_text="<b>Etanol (R$/m³)</b>", row=2, col=1, titlefont=dict(size=12))
 
     return fig
@@ -992,5 +993,4 @@ col1.metric("Açúcar Total", fmt_br(df_completo["Açúcar (t)"].sum(), 0) + " t
 col2.metric("Etanol Total", fmt_br(df_completo["Etanol (m³)"].sum(), 0) + " m³")
 col3.metric("NY11 Final", f"{df_completo['NY11_cents'].iloc[-1]:.2f} USc/lb")
 col4.metric("USD/BRL Final", f"{df_completo['USD_BRL'].iloc[-1]:.2f}")
-
 
