@@ -23,7 +23,6 @@ from datetime import date
 # Importa funções do acompanhamento_safra.py
 import sys
 from pathlib import Path
-
 sys.path.append(str(Path(__file__).parent))
 
 # Tenta importar do acompanhamento_safra
@@ -40,14 +39,14 @@ except ImportError:
     st.error("⚠️ Erro ao importar funções de acompanhamento_safra.py. Certifique-se de que o arquivo existe.")
     st.stop()
 
+
 # ============================================================================
 # CONFIGURAÇÃO STREAMLIT
 # ============================================================================
 
 st.set_page_config(page_title="Gráficos de Acompanhamento", layout="wide")
 
-st.markdown("<h1 style='text-align: center; margin-bottom: 5px;'>Gráficos de Acompanhamento de Safra 📊</h1>",
-            unsafe_allow_html=True)
+st.markdown("<h1 style='text-align: center; margin-bottom: 5px;'>Gráficos de Acompanhamento de Safra 📊</h1>", unsafe_allow_html=True)
 st.markdown(
     '<p style="text-align: center; color: #666; font-size: 0.9em; margin-top: 0px; margin-bottom: 20px;">Desenvolvido por Rogério Guilherme Jr.</p>',
     unsafe_allow_html=True
@@ -58,21 +57,21 @@ st.markdown(
 # ============================================================================
 
 CORES = {
-    'NY11': '#1f77b4',  # Azul
-    'USD_BRL': '#ff7f0e',  # Laranja
-    'Etanol': '#2ca02c',  # Verde
-    'Açúcar': '#d62728',  # Vermelho
-    'Moagem': '#1f77b4',  # Azul
-    'ATR': '#ff7f0e',  # Laranja
-    'MIX': '#2ca02c',  # Verde
-    'Real': '#9467bd',  # Roxo
-    'Projetado': '#8c564b',  # Marrom
-    'Etanol_Anidro_Cana': '#d62728',  # Vermelho
-    'Etanol_Hidratado_Cana': '#ff7f0e',  # Laranja
-    'Etanol_Anidro_Milho': '#2ca02c',  # Verde
-    'Etanol_Hidratado_Milho': '#9467bd',  # Roxo
-    'Acumulado': '#8c564b',  # Marrom
-    'Quinzenal': '#e377c2',  # Rosa
+    'NY11': '#1f77b4',           # Azul
+    'USD_BRL': '#ff7f0e',         # Laranja
+    'Etanol': '#2ca02c',          # Verde
+    'Açúcar': '#d62728',           # Vermelho
+    'Moagem': '#1f77b4',           # Azul
+    'ATR': '#ff7f0e',              # Laranja
+    'MIX': '#2ca02c',              # Verde
+    'Real': '#9467bd',             # Roxo
+    'Projetado': '#8c564b',        # Marrom
+    'Etanol_Anidro_Cana': '#d62728',    # Vermelho
+    'Etanol_Hidratado_Cana': '#ff7f0e', # Laranja
+    'Etanol_Anidro_Milho': '#2ca02c',   # Verde
+    'Etanol_Hidratado_Milho': '#9467bd', # Roxo
+    'Acumulado': '#8c564b',        # Marrom
+    'Quinzenal': '#e377c2',        # Rosa
 }
 
 
@@ -129,8 +128,7 @@ def criar_grafico_comparacao_real_projetado(df, coluna, titulo, unidade="", eixo
                     # Calcula açúcar real se tiver moagem, ATR e mix
                     if dados_q.get('moagem_real') and dados_q.get('atr_real') and dados_q.get('mix_real'):
                         from acompanhamento_safra import calcular_producao_quinzenal
-                        moagem_ant = st.session_state.dados_reais.get(quinzena - 1, {}).get('moagem_real',
-                                                                                            0) if quinzena > 1 else 0
+                        moagem_ant = st.session_state.dados_reais.get(quinzena - 1, {}).get('moagem_real', 0) if quinzena > 1 else 0
                         moagem_q = dados_q['moagem_real'] - moagem_ant
                         acucar_q, _ = calcular_producao_quinzenal(moagem_q, dados_q['atr_real'], dados_q['mix_real'])
                         valor_real = acucar_q
@@ -182,8 +180,8 @@ def criar_grafico_comparacao_real_projetado(df, coluna, titulo, unidade="", eixo
             borderwidth=0
         ),
         margin=dict(t=100, b=80, l=60, r=60),
-        xaxis=dict(title="<b>Data</b>", titlefont=dict(size=12)),
-        yaxis=dict(title=f"<b>{eixo_y or titulo} {unidade}</b>", titlefont=dict(size=12))
+        xaxis=dict(title="<b>Data</b>", title_font=dict(size=12)),
+        yaxis=dict(title=f"<b>{eixo_y or titulo} {unidade}</b>", title_font=dict(size=12))
     )
 
     fig.update_xaxes(tickangle=-45, nticks=10)
@@ -328,15 +326,15 @@ def criar_grafico_etanol_detalhado(df):
     )
 
     # Configuração de eixos
-    fig.update_xaxes(title_text="<b>Data</b>", row=2, col=1, titlefont=dict(size=12), tickangle=-45, nticks=8)
-    fig.update_xaxes(title_text="<b>Data</b>", row=2, col=2, titlefont=dict(size=12), tickangle=-45, nticks=8)
-    fig.update_xaxes(title_text="<b>Data</b>", row=1, col=1, titlefont=dict(size=12), tickangle=-45, nticks=8)
-    fig.update_xaxes(title_text="<b>Data</b>", row=1, col=2, titlefont=dict(size=12), tickangle=-45, nticks=8)
+    fig.update_xaxes(title="<b>Data</b>", row=2, col=1, title_font=dict(size=12), tickangle=-45, nticks=8)
+    fig.update_xaxes(title="<b>Data</b>", row=2, col=2, title_font=dict(size=12), tickangle=-45, nticks=8)
+    fig.update_xaxes(title="<b>Data</b>", row=1, col=1, title_font=dict(size=12), tickangle=-45, nticks=8)
+    fig.update_xaxes(title="<b>Data</b>", row=1, col=2, title_font=dict(size=12), tickangle=-45, nticks=8)
 
-    fig.update_yaxes(title_text="<b>Produção (m³)</b>", row=1, col=1, titlefont=dict(size=11))
-    fig.update_yaxes(title_text="<b>Produção (m³)</b>", row=1, col=2, titlefont=dict(size=11))
-    fig.update_yaxes(title_text="<b>Produção (m³)</b>", row=2, col=1, titlefont=dict(size=11))
-    fig.update_yaxes(title_text="<b>Total Acumulado (m³)</b>", row=2, col=2, titlefont=dict(size=11))
+    fig.update_yaxes(title="<b>Produção (m³)</b>", row=1, col=1, title_font=dict(size=11))
+    fig.update_yaxes(title="<b>Produção (m³)</b>", row=1, col=2, title_font=dict(size=11))
+    fig.update_yaxes(title="<b>Produção (m³)</b>", row=2, col=1, title_font=dict(size=11))
+    fig.update_yaxes(title="<b>Total Acumulado (m³)</b>", row=2, col=2, title_font=dict(size=11))
 
     return fig
 
@@ -364,8 +362,7 @@ def criar_grafico_desvios(df):
 
             # Moagem
             if dados_q.get('moagem_real'):
-                moagem_ant = st.session_state.dados_reais.get(quinzena - 1, {}).get('moagem_real',
-                                                                                    0) if quinzena > 1 else 0
+                moagem_ant = st.session_state.dados_reais.get(quinzena - 1, {}).get('moagem_real', 0) if quinzena > 1 else 0
                 moagem_q_real = dados_q['moagem_real'] - moagem_ant
                 moagem_q_proj = df.iloc[quinzena - 1]['Moagem']
                 if moagem_q_proj > 0:
@@ -391,8 +388,7 @@ def criar_grafico_desvios(df):
 
             # Açúcar
             if dados_q.get('moagem_real') and dados_q.get('atr_real') and dados_q.get('mix_real'):
-                moagem_ant = st.session_state.dados_reais.get(quinzena - 1, {}).get('moagem_real',
-                                                                                    0) if quinzena > 1 else 0
+                moagem_ant = st.session_state.dados_reais.get(quinzena - 1, {}).get('moagem_real', 0) if quinzena > 1 else 0
                 moagem_q_real = dados_q['moagem_real'] - moagem_ant
                 acucar_q_real, _ = calcular_producao_quinzenal(moagem_q_real, dados_q['atr_real'], dados_q['mix_real'])
                 acucar_q_proj = df.iloc[quinzena - 1]['Açúcar (t)']
@@ -567,12 +563,12 @@ def criar_grafico_desvios(df):
     fig.update_xaxes(tickangle=-45, nticks=8, row=2, col=1)
     fig.update_xaxes(tickangle=-45, nticks=8, row=2, col=2)
 
-    fig.update_yaxes(title_text="<b>Desvio (%)</b>", row=1, col=1, titlefont=dict(size=11))
-    fig.update_yaxes(title_text="<b>Desvio (%)</b>", row=1, col=2, titlefont=dict(size=11))
-    fig.update_yaxes(title_text="<b>Desvio (%)</b>", row=1, col=3, titlefont=dict(size=11))
-    fig.update_yaxes(title_text="<b>Desvio (%)</b>", row=2, col=1, titlefont=dict(size=11))
-    fig.update_yaxes(title_text="<b>Desvio (%)</b>", row=2, col=2, titlefont=dict(size=11))
-    fig.update_yaxes(title_text="<b>Desvio Médio (%)</b>", row=2, col=3, titlefont=dict(size=11))
+    fig.update_yaxes(title="<b>Desvio (%)</b>", row=1, col=1, title_font=dict(size=11))
+    fig.update_yaxes(title="<b>Desvio (%)</b>", row=1, col=2, title_font=dict(size=11))
+    fig.update_yaxes(title="<b>Desvio (%)</b>", row=1, col=3, title_font=dict(size=11))
+    fig.update_yaxes(title="<b>Desvio (%)</b>", row=2, col=1, title_font=dict(size=11))
+    fig.update_yaxes(title="<b>Desvio (%)</b>", row=2, col=2, title_font=dict(size=11))
+    fig.update_yaxes(title="<b>Desvio Médio (%)</b>", row=2, col=3, title_font=dict(size=11))
 
     return fig
 
@@ -757,15 +753,15 @@ def criar_grafico_precos_real_vs_simulado(df):
         margin=dict(t=100, b=100, l=60, r=60)
     )
 
-    fig.update_xaxes(title_text="<b>Data</b>", row=1, col=1, titlefont=dict(size=12), tickangle=-45, nticks=8)
-    fig.update_xaxes(title_text="<b>Data</b>", row=1, col=2, titlefont=dict(size=12), tickangle=-45, nticks=8)
-    fig.update_xaxes(title_text="<b>Data</b>", row=2, col=1, titlefont=dict(size=12), tickangle=-45, nticks=8)
-    fig.update_xaxes(title_text="<b>Data</b>", row=2, col=2, titlefont=dict(size=12), tickangle=-45, nticks=8)
+    fig.update_xaxes(title="<b>Data</b>", row=1, col=1, title_font=dict(size=12), tickangle=-45, nticks=8)
+    fig.update_xaxes(title="<b>Data</b>", row=1, col=2, title_font=dict(size=12), tickangle=-45, nticks=8)
+    fig.update_xaxes(title="<b>Data</b>", row=2, col=1, title_font=dict(size=12), tickangle=-45, nticks=8)
+    fig.update_xaxes(title="<b>Data</b>", row=2, col=2, title_font=dict(size=12), tickangle=-45, nticks=8)
 
-    fig.update_yaxes(title_text="<b>NY11 (USc/lb)</b>", row=1, col=1, titlefont=dict(size=11))
-    fig.update_yaxes(title_text="<b>USD/BRL</b>", row=1, col=2, titlefont=dict(size=11))
-    fig.update_yaxes(title_text="<b>Preço (R$/m³)</b>", row=2, col=1, titlefont=dict(size=11))
-    fig.update_yaxes(title_text="<b>Preço (R$/m³)</b>", row=2, col=2, titlefont=dict(size=11))
+    fig.update_yaxes(title="<b>NY11 (USc/lb)</b>", row=1, col=1, title_font=dict(size=11))
+    fig.update_yaxes(title="<b>USD/BRL</b>", row=1, col=2, title_font=dict(size=11))
+    fig.update_yaxes(title="<b>Preço (R$/m³)</b>", row=2, col=1, title_font=dict(size=11))
+    fig.update_yaxes(title="<b>Preço (R$/m³)</b>", row=2, col=2, title_font=dict(size=11))
 
     return fig
 
@@ -849,15 +845,15 @@ def criar_grafico_analise_estatistica(df):
         margin=dict(t=100, b=100, l=60, r=60)
     )
 
-    fig.update_xaxes(title_text="<b>Moagem (ton)</b>", row=1, col=1, titlefont=dict(size=11))
-    fig.update_xaxes(title_text="<b>ATR (kg/t)</b>", row=1, col=2, titlefont=dict(size=11))
-    fig.update_xaxes(title_text="<b>MIX (%)</b>", row=2, col=1, titlefont=dict(size=11))
-    fig.update_xaxes(title_text="<b>Açúcar (t)</b>", row=2, col=2, titlefont=dict(size=11))
+    fig.update_xaxes(title="<b>Moagem (ton)</b>", row=1, col=1, title_font=dict(size=11))
+    fig.update_xaxes(title="<b>ATR (kg/t)</b>", row=1, col=2, title_font=dict(size=11))
+    fig.update_xaxes(title="<b>MIX (%)</b>", row=2, col=1, title_font=dict(size=11))
+    fig.update_xaxes(title="<b>Açúcar (t)</b>", row=2, col=2, title_font=dict(size=11))
 
-    fig.update_yaxes(title_text="<b>Frequência</b>", row=1, col=1, titlefont=dict(size=11))
-    fig.update_yaxes(title_text="<b>Frequência</b>", row=1, col=2, titlefont=dict(size=11))
-    fig.update_yaxes(title_text="<b>Frequência</b>", row=2, col=1, titlefont=dict(size=11))
-    fig.update_yaxes(title_text="<b>NY11 (USc/lb)</b>", row=2, col=2, titlefont=dict(size=11))
+    fig.update_yaxes(title="<b>Frequência</b>", row=1, col=1, title_font=dict(size=11))
+    fig.update_yaxes(title="<b>Frequência</b>", row=1, col=2, title_font=dict(size=11))
+    fig.update_yaxes(title="<b>Frequência</b>", row=2, col=1, title_font=dict(size=11))
+    fig.update_yaxes(title="<b>NY11 (USc/lb)</b>", row=2, col=2, title_font=dict(size=11))
 
     return fig
 
@@ -888,10 +884,8 @@ etanol_inicial = st.sidebar.number_input("Etanol inicial (R$/m³)", value=2500.0
 
 with st.sidebar.expander("🔧 Parâmetros Avançados", expanded=False):
     st.caption("⚙️ Ajustes finos da simulação (opcional)")
-    preco_ref = st.sidebar.number_input("Preço referência NY11 (USc/lb)", value=15.0, step=0.5, format="%.1f",
-                                        key="preco_ref_grafico")
-    sensibilidade = st.sidebar.slider("Sensibilidade oferta → preço (%)", 0.0, 30.0, 10.0, 1.0,
-                                      key="sensibilidade_grafico")
+    preco_ref = st.sidebar.number_input("Preço referência NY11 (USc/lb)", value=15.0, step=0.5, format="%.1f", key="preco_ref_grafico")
+    sensibilidade = st.sidebar.slider("Sensibilidade oferta → preço (%)", 0.0, 30.0, 10.0, 1.0, key="sensibilidade_grafico")
 
 # Inicializa dados reais no session_state (compartilhado com acompanhamento_safra)
 if 'dados_reais' not in st.session_state:
@@ -978,8 +972,7 @@ elif tipo_grafico == "Comparação Real vs Projetado - Açúcar":
 
 elif tipo_grafico == "Comparação Real vs Projetado - Etanol":
     st.subheader("📊 Etanol - Real vs Projetado")
-    fig = criar_grafico_comparacao_real_projetado(df_completo, 'Etanol Total (m³)', 'Etanol Total', 'm³',
-                                                  'Etanol Total (m³)')
+    fig = criar_grafico_comparacao_real_projetado(df_completo, 'Etanol Total (m³)', 'Etanol Total', 'm³', 'Etanol Total (m³)')
     st.plotly_chart(fig, use_container_width=True)
     st.caption("💡 Este gráfico compara a produção de etanol real (quando disponível) com a projetada.")
 
@@ -987,19 +980,16 @@ elif tipo_grafico == "Etanol Detalhado":
     st.subheader("🍯 Etanol Detalhado - Anidro/Hidratado, Cana/Milho")
     fig = criar_grafico_etanol_detalhado(df_completo)
     st.plotly_chart(fig, use_container_width=True)
-    st.caption(
-        "💡 Este gráfico mostra a produção detalhada de etanol por tipo (anidro/hidratado) e origem (cana/milho).")
+    st.caption("💡 Este gráfico mostra a produção detalhada de etanol por tipo (anidro/hidratado) e origem (cana/milho).")
 
 elif tipo_grafico == "Análise de Desvios":
     st.subheader("📈 Análise de Desvios - Real vs Projetado")
     fig = criar_grafico_desvios(df_completo)
     if fig:
         st.plotly_chart(fig, use_container_width=True)
-        st.caption(
-            "💡 Este gráfico mostra os desvios percentuais entre dados reais e projetados. Valores positivos indicam que o real está acima do projetado.")
+        st.caption("💡 Este gráfico mostra os desvios percentuais entre dados reais e projetados. Valores positivos indicam que o real está acima do projetado.")
     else:
-        st.warning(
-            "⚠️ Não há dados reais suficientes para calcular desvios. Insira dados reais na página de Acompanhamento de Safra.")
+        st.warning("⚠️ Não há dados reais suficientes para calcular desvios. Insira dados reais na página de Acompanhamento de Safra.")
 
 elif tipo_grafico == "Preços Real vs Simulado":
     st.subheader("💰 Preços - Real vs Simulado")
@@ -1078,12 +1068,12 @@ elif tipo_grafico == "Evolução de Parâmetros de Safra":
         margin=dict(t=80, b=100, l=60, r=60)
     )
 
-    fig.update_xaxes(title_text="<b>Data</b>", row=1, col=1, titlefont=dict(size=12), tickangle=-45, nticks=8)
-    fig.update_xaxes(title_text="<b>Data</b>", row=2, col=1, titlefont=dict(size=12), tickangle=-45, nticks=8)
-    fig.update_xaxes(title_text="<b>Data</b>", row=3, col=1, titlefont=dict(size=12), tickangle=-45, nticks=8)
-    fig.update_yaxes(title_text="<b>Moagem (ton)</b>", row=1, col=1, titlefont=dict(size=12))
-    fig.update_yaxes(title_text="<b>ATR (kg/t)</b>", row=2, col=1, titlefont=dict(size=12))
-    fig.update_yaxes(title_text="<b>MIX (%)</b>", row=3, col=1, titlefont=dict(size=12))
+    fig.update_xaxes(title="<b>Data</b>", row=1, col=1, title_font=dict(size=12), tickangle=-45, nticks=8)
+    fig.update_xaxes(title="<b>Data</b>", row=2, col=1, title_font=dict(size=12), tickangle=-45, nticks=8)
+    fig.update_xaxes(title="<b>Data</b>", row=3, col=1, title_font=dict(size=12), tickangle=-45, nticks=8)
+    fig.update_yaxes(title="<b>Moagem (ton)</b>", row=1, col=1, title_font=dict(size=12))
+    fig.update_yaxes(title="<b>ATR (kg/t)</b>", row=2, col=1, title_font=dict(size=12))
+    fig.update_yaxes(title="<b>MIX (%)</b>", row=3, col=1, title_font=dict(size=12))
 
     st.plotly_chart(fig, use_container_width=True)
     st.caption("💡 Este gráfico mostra a evolução dos principais parâmetros de safra: Moagem, ATR e MIX.")
@@ -1167,12 +1157,12 @@ elif tipo_grafico == "Produção Acumulada":
         margin=dict(t=80, b=100, l=60, r=60)
     )
 
-    fig.update_xaxes(title_text="<b>Data</b>", row=1, col=1, titlefont=dict(size=12), tickangle=-45, nticks=8)
-    fig.update_xaxes(title_text="<b>Data</b>", row=1, col=2, titlefont=dict(size=12), tickangle=-45, nticks=8)
-    fig.update_yaxes(title_text="<b>Acumulado (t)</b>", row=1, col=1, secondary_y=False, titlefont=dict(size=11))
-    fig.update_yaxes(title_text="<b>Quinzenal (t)</b>", row=1, col=1, secondary_y=True, titlefont=dict(size=11))
-    fig.update_yaxes(title_text="<b>Acumulado (m³)</b>", row=1, col=2, secondary_y=False, titlefont=dict(size=11))
-    fig.update_yaxes(title_text="<b>Quinzenal (m³)</b>", row=1, col=2, secondary_y=True, titlefont=dict(size=11))
+    fig.update_xaxes(title="<b>Data</b>", row=1, col=1, title_font=dict(size=12), tickangle=-45, nticks=8)
+    fig.update_xaxes(title="<b>Data</b>", row=1, col=2, title_font=dict(size=12), tickangle=-45, nticks=8)
+    fig.update_yaxes(title="<b>Acumulado (t)</b>", row=1, col=1, secondary_y=False, title_font=dict(size=11))
+    fig.update_yaxes(title="<b>Quinzenal (t)</b>", row=1, col=1, secondary_y=True, title_font=dict(size=11))
+    fig.update_yaxes(title="<b>Acumulado (m³)</b>", row=1, col=2, secondary_y=False, title_font=dict(size=11))
+    fig.update_yaxes(title="<b>Quinzenal (m³)</b>", row=1, col=2, secondary_y=True, title_font=dict(size=11))
 
     st.plotly_chart(fig, use_container_width=True)
     st.caption("💡 Este gráfico mostra a produção acumulada e quinzenal de açúcar e etanol.")
@@ -1196,7 +1186,7 @@ st.info(
     - **Última quinzena com dados reais:** {max(st.session_state.dados_reais.keys()) if st.session_state.dados_reais else 'Nenhuma'}
     - **Tendência esperada:** {direcao.upper()}
     {choques_info}
-
+    
     💡 *Os dados são compartilhados com a página de Acompanhamento de Safra através do session_state.*
     """
 )
