@@ -117,35 +117,66 @@ def criar_grafico_comparacao_real_projetado(df, coluna, titulo, unidade="", eixo
                 data_q = df.iloc[quinzena - 1]['Data'] if quinzena <= len(df) else None
 
                 # Mapeia coluna para campo real
+                # IMPORTANTE: dados_reais contém valores ACUMULADOS, então calcula quinzenal como diferença
                 valor_real = None
                 if 'moagem' in coluna.lower():
-                    valor_real = dados_q.get('moagem_real')
+                    # Moagem acumulada - calcula quinzenal
+                    moagem_acum = dados_q.get('moagem_real')
+                    if moagem_acum:
+                        if quinzena == 1:
+                            valor_real = moagem_acum
+                        else:
+                            moagem_ant = st.session_state.dados_reais.get(quinzena - 1, {}).get('moagem_real', 0) or 0
+                            valor_real = moagem_acum - moagem_ant
                 elif 'atr' in coluna.lower():
+                    # ATR é médio, não acumulado
                     valor_real = dados_q.get('atr_real')
                 elif 'mix' in coluna.lower():
+                    # MIX é médio, não acumulado
                     valor_real = dados_q.get('mix_real')
                 elif 'açúcar' in coluna.lower() or 'acucar' in coluna.lower():
-                    # Calcula açúcar real se tiver moagem, ATR e mix
+                    # Calcula açúcar real quinzenal se tiver moagem, ATR e mix
                     if dados_q.get('moagem_real') and dados_q.get('atr_real') and dados_q.get('mix_real'):
                         from acompanhamento_safra import calcular_producao_quinzenal
-                        moagem_ant = st.session_state.dados_reais.get(quinzena - 1, {}).get('moagem_real', 0) if quinzena > 1 else 0
-                        moagem_q = dados_q['moagem_real'] - moagem_ant
+                        moagem_acum = dados_q['moagem_real']
+                        if quinzena == 1:
+                            moagem_q = moagem_acum
+                        else:
+                            moagem_ant = st.session_state.dados_reais.get(quinzena - 1, {}).get('moagem_real', 0) or 0
+                            moagem_q = moagem_acum - moagem_ant
                         acucar_q, _ = calcular_producao_quinzenal(moagem_q, dados_q['atr_real'], dados_q['mix_real'])
                         valor_real = acucar_q
                 elif 'etanol' in coluna.lower():
                     # Para etanol, pode ser total ou detalhado
+                    # Dados são ACUMULADOS, então calcula quinzenal como diferença
                     if 'total' in coluna.lower():
-                        # Soma todos os tipos de etanol
-                        total = 0
+                        # Soma todos os tipos de etanol acumulados e calcula quinzenal
+                        total_acum = 0
                         if dados_q.get('etanol_anidro_cana_real'):
-                            total += dados_q['etanol_anidro_cana_real']
+                            total_acum += dados_q['etanol_anidro_cana_real']
                         if dados_q.get('etanol_hidratado_cana_real'):
-                            total += dados_q['etanol_hidratado_cana_real']
+                            total_acum += dados_q['etanol_hidratado_cana_real']
                         if dados_q.get('etanol_anidro_milho_real'):
-                            total += dados_q['etanol_anidro_milho_real']
+                            total_acum += dados_q['etanol_anidro_milho_real']
                         if dados_q.get('etanol_hidratado_milho_real'):
-                            total += dados_q['etanol_hidratado_milho_real']
-                        valor_real = total if total > 0 else None
+                            total_acum += dados_q['etanol_hidratado_milho_real']
+
+                        if total_acum > 0:
+                            if quinzena == 1:
+                                valor_real = total_acum
+                            else:
+                                # Calcula total acumulado anterior
+                                dados_ant = st.session_state.dados_reais.get(quinzena - 1, {})
+                                total_ant = 0
+                                if dados_ant.get('etanol_anidro_cana_real'):
+                                    total_ant += dados_ant['etanol_anidro_cana_real']
+                                if dados_ant.get('etanol_hidratado_cana_real'):
+                                    total_ant += dados_ant['etanol_hidratado_cana_real']
+                                if dados_ant.get('etanol_anidro_milho_real'):
+                                    total_ant += dados_ant['etanol_anidro_milho_real']
+                                if dados_ant.get('etanol_hidratado_milho_real'):
+                                    total_ant += dados_ant['etanol_hidratado_milho_real']
+                                valor_real = total_acum - total_ant
 
                 if valor_real and valor_real > 0 and data_q:
                     dados_reais_list.append(valor_real)
@@ -360,10 +391,14 @@ def criar_grafico_desvios(df):
             dados_q = st.session_state.dados_reais[quinzena]
             data_q = df.iloc[quinzena - 1]['Data']
 
-            # Moagem
+            # Moagem (dados são acumulados, então calcula quinzenal)
             if dados_q.get('moagem_real'):
-                moagem_ant = st.session_state.dados_reais.get(quinzena - 1, {}).get('moagem_real', 0) if quinzena > 1 else 0
-                moagem_q_real = dados_q['moagem_real'] - moagem_ant
+                moagem_acum = dados_q['moagem_real']
+                if quinzena == 1:
+                    moagem_q_real = moagem_acum
+                else:
+                    moagem_ant = st.session_state.dados_reais.get(quinzena - 1, {}).get('moagem_real', 0) or 0
+                    moagem_q_real = moagem_acum - moagem_ant
                 moagem_q_proj = df.iloc[quinzena - 1]['Moagem']
                 if moagem_q_proj > 0:
                     desvio = ((moagem_q_real - moagem_q_proj) / moagem_q_proj) * 100
@@ -386,28 +421,48 @@ def criar_grafico_desvios(df):
                     desvio = ((mix_real - mix_proj) / mix_proj) * 100
                     desvios_mix.append(desvio)
 
-            # Açúcar
+            # Açúcar (calcula quinzenal a partir de moagem acumulada)
             if dados_q.get('moagem_real') and dados_q.get('atr_real') and dados_q.get('mix_real'):
-                moagem_ant = st.session_state.dados_reais.get(quinzena - 1, {}).get('moagem_real', 0) if quinzena > 1 else 0
-                moagem_q_real = dados_q['moagem_real'] - moagem_ant
+                moagem_acum = dados_q['moagem_real']
+                if quinzena == 1:
+                    moagem_q_real = moagem_acum
+                else:
+                    moagem_ant = st.session_state.dados_reais.get(quinzena - 1, {}).get('moagem_real', 0) or 0
+                    moagem_q_real = moagem_acum - moagem_ant
                 acucar_q_real, _ = calcular_producao_quinzenal(moagem_q_real, dados_q['atr_real'], dados_q['mix_real'])
                 acucar_q_proj = df.iloc[quinzena - 1]['Açúcar (t)']
                 if acucar_q_proj > 0:
                     desvio = ((acucar_q_real - acucar_q_proj) / acucar_q_proj) * 100
                     desvios_acucar.append(desvio)
 
-            # Etanol
-            total_etanol_real = 0
+            # Etanol (dados são acumulados, então calcula quinzenal como diferença)
+            total_etanol_acum = 0
             if dados_q.get('etanol_anidro_cana_real'):
-                total_etanol_real += dados_q['etanol_anidro_cana_real']
+                total_etanol_acum += dados_q['etanol_anidro_cana_real']
             if dados_q.get('etanol_hidratado_cana_real'):
-                total_etanol_real += dados_q['etanol_hidratado_cana_real']
+                total_etanol_acum += dados_q['etanol_hidratado_cana_real']
             if dados_q.get('etanol_anidro_milho_real'):
-                total_etanol_real += dados_q['etanol_anidro_milho_real']
+                total_etanol_acum += dados_q['etanol_anidro_milho_real']
             if dados_q.get('etanol_hidratado_milho_real'):
-                total_etanol_real += dados_q['etanol_hidratado_milho_real']
+                total_etanol_acum += dados_q['etanol_hidratado_milho_real']
 
-            if total_etanol_real > 0:
+            if total_etanol_acum > 0:
+                # Calcula quinzenal como diferença
+                if quinzena == 1:
+                    total_etanol_real = total_etanol_acum
+                else:
+                    dados_ant = st.session_state.dados_reais.get(quinzena - 1, {})
+                    total_ant = 0
+                    if dados_ant.get('etanol_anidro_cana_real'):
+                        total_ant += dados_ant['etanol_anidro_cana_real']
+                    if dados_ant.get('etanol_hidratado_cana_real'):
+                        total_ant += dados_ant['etanol_hidratado_cana_real']
+                    if dados_ant.get('etanol_anidro_milho_real'):
+                        total_ant += dados_ant['etanol_anidro_milho_real']
+                    if dados_ant.get('etanol_hidratado_milho_real'):
+                        total_ant += dados_ant['etanol_hidratado_milho_real']
+                    total_etanol_real = total_etanol_acum - total_ant
+
                 etanol_q_proj = df.iloc[quinzena - 1]['Etanol Total (m³)']
                 if etanol_q_proj > 0:
                     desvio = ((total_etanol_real - etanol_q_proj) / etanol_q_proj) * 100

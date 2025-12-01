@@ -633,7 +633,7 @@ def criar_grafico_heatmap_correlacao(df):
         texttemplate='%{text}',
         textfont=dict(size=12, family="Arial"),
         showscale=True,
-        colorbar=dict(title="<b>Correlação</b>", titlefont=dict(size=12)),
+        colorbar=dict(title="Correlação", titlefont=dict(size=12)),
         hovertemplate='<b>%{y} vs %{x}</b><br>Correlação: %{z:.2f}<extra></extra>'
     ))
 

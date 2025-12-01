@@ -20,6 +20,7 @@ import streamlit as st
 from pathlib import Path
 import numpy as np
 from datetime import date
+import json
 from Dados_base import (
     DATA_FILES,
     DESCONTO_VHP_FOB,
@@ -42,6 +43,38 @@ def fmt_br(valor, casas=2):
     if valor is None or pd.isna(valor):
         return ""
     return f"{valor:,.{casas}f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+# ============================================================================
+# FUNÇÕES DE PERSISTÊNCIA
+# ============================================================================
+
+def salvar_dados_reais(dados_reais, arquivo="dados_reais_safra.json"):
+    """Salva dados reais em arquivo JSON"""
+    try:
+        caminho_arquivo = Path(arquivo)
+        with open(caminho_arquivo, 'w', encoding='utf-8') as f:
+            # Converte chaves int para str para JSON
+            dados_serializados = {str(k): v for k, v in dados_reais.items()}
+            json.dump(dados_serializados, f, indent=2, ensure_ascii=False)
+        return True
+    except Exception as e:
+        st.error(f"Erro ao salvar dados: {e}")
+        return False
+
+def carregar_dados_reais(arquivo="dados_reais_safra.json"):
+    """Carrega dados reais de arquivo JSON"""
+    try:
+        caminho_arquivo = Path(arquivo)
+        if caminho_arquivo.exists():
+            with open(caminho_arquivo, 'r', encoding='utf-8') as f:
+                dados_serializados = json.load(f)
+                # Converte chaves str de volta para int
+                dados_reais = {int(k): v for k, v in dados_serializados.items()}
+                return dados_reais
+        return {}
+    except Exception as e:
+        st.warning(f"Erro ao carregar dados: {e}")
+        return {}
 
 
 # ============================================================================
@@ -228,35 +261,93 @@ def gerar_projecao_quinzenal(moagem_total, atr_medio, mix_medio, n_quinzenas=24,
     perfil_atr_ajustado = [PERFIL_ATR[i % n_perfil] for i in range(n_quinzenas)]
     perfil_mix_ajustado = [PERFIL_MIX[i % n_perfil] for i in range(n_quinzenas)]
 
-    # Calcula SOMARPRODUTO para ATR e Mix
-    somarproduto_atr = sum(moagem_distribuida[i] * perfil_atr_ajustado[i] for i in range(n_quinzenas))
-    somarproduto_mix = sum(moagem_distribuida[i] * perfil_mix_ajustado[i] for i in range(n_quinzenas))
-
-    # Calcula fatores de correção
-    fator_atr = (atr_medio * soma_moagem) / somarproduto_atr if somarproduto_atr > 0 else 1.0
-    fator_mix = (mix_medio * moagem_total) / somarproduto_mix if somarproduto_mix > 0 else 1.0
-
     # Identifica última quinzena com dados reais
     ultima_quinzena_real = 0
+    moagem_real_acum_total = 0
     if dados_reais:
         for q in sorted(dados_reais.keys(), reverse=True):
             if dados_reais[q].get('moagem_real') is not None:
                 ultima_quinzena_real = q
+                moagem_real_acum_total = dados_reais[q].get('moagem_real', 0)
                 break
 
-    # Ajusta fatores se houver dados reais
-    # Nota: dados_reais contém valores ACUMULADOS
-    if ultima_quinzena_real > 0:
-        # Pega o valor acumulado real da última quinzena
-        moagem_real_acum = dados_reais[ultima_quinzena_real].get('moagem_real', 0)
-        # Calcula projeção acumulada até a última quinzena
-        moagem_proj_acum = sum(moagem_distribuida[i] for i in range(ultima_quinzena_real))
+    # Ajusta distribuição futura para manter o total final estimado
+    # IMPORTANTE: O total final (moagem_total) NÃO pode mudar
+    # Os dados reais apenas ajustam a distribuição, não o total
+    if ultima_quinzena_real > 0 and ultima_quinzena_real < n_quinzenas:
+        # Calcula quanto falta para completar o total estimado
+        moagem_restante = moagem_total - moagem_real_acum_total
 
-        if moagem_proj_acum > 0 and moagem_real_acum > 0:
-            fator_ajuste = moagem_real_acum / moagem_proj_acum
-            # Ajusta projeção futura baseada no desvio observado
+        # Calcula a soma dos pesos das quinzenas futuras (sem dados reais)
+        pesos_futuros = []
+        for i in range(ultima_quinzena_real, n_quinzenas):
+            pesos_futuros.append(pct_moagem[i])
+
+        soma_pesos_futuros = sum(pesos_futuros) if pesos_futuros else 1.0
+
+        # Redistribui o restante proporcionalmente ao perfil
+        # Garante que o total final seja exatamente moagem_total
+        if soma_pesos_futuros > 0 and moagem_restante > 0:
             for i in range(ultima_quinzena_real, n_quinzenas):
-                moagem_distribuida[i] = moagem_distribuida[i] * fator_ajuste
+                # Redistribui proporcionalmente ao perfil, mas garantindo o total final
+                moagem_distribuida[i] = moagem_restante * (pct_moagem[i] / soma_pesos_futuros)
+
+    # Ajusta ATR e MIX para manterem a média final estimada
+    # Calcula ATR e MIX reais acumulados (se houver dados)
+    atr_real_acum = 0
+    mix_real_acum = 0
+    moagem_real_para_media = 0
+
+    if dados_reais and ultima_quinzena_real > 0:
+        # Calcula média ponderada dos dados reais de ATR e MIX
+        for q in range(1, ultima_quinzena_real + 1):
+            if q in dados_reais and dados_reais[q].get('moagem_real') is not None:
+                # Calcula moagem quinzenal real
+                if q == 1:
+                    moagem_q_real = dados_reais[q].get('moagem_real', 0)
+                else:
+                    moagem_ant = dados_reais.get(q - 1, {}).get('moagem_real', 0) or 0
+                    moagem_q_real = dados_reais[q].get('moagem_real', 0) - moagem_ant
+
+                # ATR e MIX reais (se disponíveis)
+                atr_q_real = dados_reais[q].get('atr_real')
+                mix_q_real = dados_reais[q].get('mix_real')
+
+                if atr_q_real:
+                    atr_real_acum += atr_q_real * moagem_q_real
+                if mix_q_real:
+                    mix_real_acum += mix_q_real * moagem_q_real
+
+                moagem_real_para_media += moagem_q_real
+
+    # Calcula fatores de correção para ATR e MIX
+    # IMPORTANTE: A média final deve ser exatamente atr_medio e mix_medio
+    # Total necessário: atr_medio * moagem_total e mix_medio * moagem_total
+    atr_total_necessario = atr_medio * moagem_total
+    mix_total_necessario = mix_medio * moagem_total
+
+    # Calcula quanto falta para completar a média final
+    atr_restante = atr_total_necessario - atr_real_acum
+    mix_restante = mix_total_necessario - mix_real_acum
+
+    # Calcula SOMARPRODUTO para as quinzenas futuras (sem dados reais)
+    # Usa a moagem_distribuida já ajustada
+    if ultima_quinzena_real > 0 and ultima_quinzena_real < n_quinzenas:
+        somarproduto_atr_futuro = sum(moagem_distribuida[i] * perfil_atr_ajustado[i]
+                                    for i in range(ultima_quinzena_real, n_quinzenas))
+        somarproduto_mix_futuro = sum(moagem_distribuida[i] * perfil_mix_ajustado[i]
+                                    for i in range(ultima_quinzena_real, n_quinzenas))
+    else:
+        # Se não há dados reais, usa toda a distribuição
+        somarproduto_atr_futuro = sum(moagem_distribuida[i] * perfil_atr_ajustado[i] for i in range(n_quinzenas))
+        somarproduto_mix_futuro = sum(moagem_distribuida[i] * perfil_mix_ajustado[i] for i in range(n_quinzenas))
+        atr_restante = atr_total_necessario
+        mix_restante = mix_total_necessario
+
+    # Calcula fatores de correção baseados no restante necessário
+    # Estes fatores garantem que a média final seja exatamente atr_medio e mix_medio
+    fator_atr = atr_restante / somarproduto_atr_futuro if somarproduto_atr_futuro > 0 else 1.0
+    fator_mix = mix_restante / somarproduto_mix_futuro if somarproduto_mix_futuro > 0 else 1.0
 
     linhas = []
     for i in range(n_quinzenas):
@@ -317,12 +408,42 @@ def gerar_projecao_quinzenal(moagem_total, atr_medio, mix_medio, n_quinzenas=24,
             etanol_q, quinzena, n_quinzenas
         )
 
-        # Verifica se há dados reais de etanol
+        # Verifica se há dados reais de etanol (são ACUMULADOS, então calcula diferença)
         if tem_dados_reais:
-            etanol_anidro_cana = dados_reais[quinzena].get('etanol_anidro_cana_real', etanol_anidro_cana)
-            etanol_hidratado_cana = dados_reais[quinzena].get('etanol_hidratado_cana_real', etanol_hidratado_cana)
-            etanol_anidro_milho = dados_reais[quinzena].get('etanol_anidro_milho_real', etanol_anidro_milho)
-            etanol_hidratado_milho = dados_reais[quinzena].get('etanol_hidratado_milho_real', etanol_hidratado_milho)
+            # Etanol acumulado atual
+            etanol_anidro_cana_acum = dados_reais[quinzena].get('etanol_anidro_cana_real')
+            etanol_hidratado_cana_acum = dados_reais[quinzena].get('etanol_hidratado_cana_real')
+            etanol_anidro_milho_acum = dados_reais[quinzena].get('etanol_anidro_milho_real')
+            etanol_hidratado_milho_acum = dados_reais[quinzena].get('etanol_hidratado_milho_real')
+
+            # Calcula quinzenal como diferença do acumulado
+            if etanol_anidro_cana_acum is not None:
+                if quinzena == 1:
+                    etanol_anidro_cana = etanol_anidro_cana_acum
+                else:
+                    etanol_anidro_cana_ant = dados_reais.get(quinzena - 1, {}).get('etanol_anidro_cana_real', 0) or 0
+                    etanol_anidro_cana = etanol_anidro_cana_acum - etanol_anidro_cana_ant
+
+            if etanol_hidratado_cana_acum is not None:
+                if quinzena == 1:
+                    etanol_hidratado_cana = etanol_hidratado_cana_acum
+                else:
+                    etanol_hidratado_cana_ant = dados_reais.get(quinzena - 1, {}).get('etanol_hidratado_cana_real', 0) or 0
+                    etanol_hidratado_cana = etanol_hidratado_cana_acum - etanol_hidratado_cana_ant
+
+            if etanol_anidro_milho_acum is not None:
+                if quinzena == 1:
+                    etanol_anidro_milho = etanol_anidro_milho_acum
+                else:
+                    etanol_anidro_milho_ant = dados_reais.get(quinzena - 1, {}).get('etanol_anidro_milho_real', 0) or 0
+                    etanol_anidro_milho = etanol_anidro_milho_acum - etanol_anidro_milho_ant
+
+            if etanol_hidratado_milho_acum is not None:
+                if quinzena == 1:
+                    etanol_hidratado_milho = etanol_hidratado_milho_acum
+                else:
+                    etanol_hidratado_milho_ant = dados_reais.get(quinzena - 1, {}).get('etanol_hidratado_milho_real', 0) or 0
+                    etanol_hidratado_milho = etanol_hidratado_milho_acum - etanol_hidratado_milho_ant
 
         # Etanol total da quinzena (cana + milho)
         etanol_total_quinzena = etanol_anidro_cana + etanol_hidratado_cana + etanol_anidro_milho + etanol_hidratado_milho
@@ -531,9 +652,9 @@ with st.sidebar.expander("🔧 Parâmetros Avançados", expanded=False):
     preco_ref = st.number_input("Preço referência NY11 (USc/lb)", value=15.0, step=0.5, format="%.1f")
     sensibilidade = st.slider("Sensibilidade oferta → preço (%)", 0.0, 30.0, 10.0, 1.0)
 
-# Inicializa dados reais no session_state
+# Inicializa dados reais no session_state (carrega de arquivo se existir)
 if 'dados_reais' not in st.session_state:
-    st.session_state.dados_reais = {}
+    st.session_state.dados_reais = carregar_dados_reais()
 
 # Inicializa choques de safra
 if 'choques_safra' not in st.session_state:
@@ -549,30 +670,96 @@ st.subheader("📥 Inserção de Dados Reais (Unica)")
 
 st.caption("💡 Insira os dados acumulados conforme recebe da Unica. A projeção será ajustada automaticamente.")
 
+# Seletor de quinzena para edição
+quinzenas_com_dados = sorted([q for q in st.session_state.dados_reais.keys() if st.session_state.dados_reais[q].get('moagem_real')])
+modo_edicao = False
+quinzena_selecionada = "Nova quinzena"
+
+if quinzenas_com_dados:
+    col_sel1, col_sel2 = st.columns([3, 1])
+    with col_sel1:
+        quinzena_selecionada = st.selectbox(
+            "📝 Selecionar quinzena para editar (ou deixe em 'Nova quinzena' para nova)",
+            ["Nova quinzena"] + [f"Q{q}" for q in quinzenas_com_dados],
+            key="select_quinzena_editar"
+        )
+    with col_sel2:
+        if quinzena_selecionada and quinzena_selecionada != "Nova quinzena":
+            quinzena_editar = int(quinzena_selecionada.replace("Q", ""))
+            if st.button("🗑️ Remover", use_container_width=True, key="btn_remover_quinzena"):
+                if quinzena_editar in st.session_state.dados_reais:
+                    del st.session_state.dados_reais[quinzena_editar]
+                    salvar_dados_reais(st.session_state.dados_reais)
+                    st.success(f"✅ Quinzena {quinzena_editar} removida!")
+                    st.rerun()
+
+# Verifica se está em modo edição
+if quinzena_selecionada and quinzena_selecionada != "Nova quinzena":
+    modo_edicao = True
+else:
+    modo_edicao = False
+
+# Preenche campos se estiver editando
+if modo_edicao:
+    quinzena_editar = int(quinzena_selecionada.replace("Q", ""))
+    dados_editar = st.session_state.dados_reais.get(quinzena_editar, {})
+    valor_default_quinzena = quinzena_editar
+    valor_default_moagem = dados_editar.get('moagem_real', 0)
+    valor_default_atr = dados_editar.get('atr_real', 0.0)
+    valor_default_mix = dados_editar.get('mix_real', 0.0)
+    valor_default_usd = dados_editar.get('usd_real', 0.0)
+    valor_default_ny11 = dados_editar.get('ny11_real', 0.0)
+    valor_default_etanol_anidro_preco = dados_editar.get('etanol_anidro_preco_real', 0.0)
+    valor_default_etanol_hidratado_preco = dados_editar.get('etanol_hidratado_preco_real', 0.0)
+    valor_default_etanol_anidro_cana = dados_editar.get('etanol_anidro_cana_real', 0.0)
+    valor_default_etanol_hidratado_cana = dados_editar.get('etanol_hidratado_cana_real', 0.0)
+    valor_default_etanol_anidro_milho = dados_editar.get('etanol_anidro_milho_real', 0.0)
+    valor_default_etanol_hidratado_milho = dados_editar.get('etanol_hidratado_milho_real', 0.0)
+    usar_etanol_manual_default = any([
+        valor_default_etanol_anidro_cana > 0,
+        valor_default_etanol_hidratado_cana > 0,
+        valor_default_etanol_anidro_milho > 0,
+        valor_default_etanol_hidratado_milho > 0
+    ])
+else:
+    valor_default_quinzena = 1
+    valor_default_moagem = 0
+    valor_default_atr = 0.0
+    valor_default_mix = 0.0
+    valor_default_usd = 0.0
+    valor_default_ny11 = 0.0
+    valor_default_etanol_anidro_preco = 0.0
+    valor_default_etanol_hidratado_preco = 0.0
+    valor_default_etanol_anidro_cana = 0.0
+    valor_default_etanol_hidratado_cana = 0.0
+    valor_default_etanol_anidro_milho = 0.0
+    valor_default_etanol_hidratado_milho = 0.0
+    usar_etanol_manual_default = False
+
 col1, col2, col3 = st.columns(3)
 with col1:
-    quinzena_inserir = st.number_input("Quinzena", min_value=1, max_value=int(n_quinz), value=1, step=1)
+    quinzena_inserir = st.number_input("Quinzena", min_value=1, max_value=int(n_quinz), value=valor_default_quinzena, step=1, disabled=modo_edicao)
 with col2:
-    moagem_real = st.number_input("Moagem acumulada (ton)", value=0, step=1000, format="%d")
+    moagem_real = st.number_input("Moagem acumulada (ton)", value=int(valor_default_moagem), step=1000, format="%d")
 with col3:
-    atr_real = st.number_input("ATR (kg/t)", value=0.0, step=0.1, format="%.1f")
+    atr_real = st.number_input("ATR (kg/t)", value=valor_default_atr, step=0.1, format="%.1f")
 
 col4, col5 = st.columns(2)
 with col4:
-    mix_real = st.number_input("Mix açúcar (%)", value=0.0, step=0.1, format="%.1f")
+    mix_real = st.number_input("Mix açúcar (%)", value=valor_default_mix, step=0.1, format="%.1f")
 with col5:
-    usar_etanol_manual = st.checkbox("Inserir etanol manualmente", value=False)
+    usar_etanol_manual = st.checkbox("Inserir etanol manualmente", value=usar_etanol_manual_default)
 
 st.markdown("**💲 Preços no Fim da Quinzena:**")
 col_preco1, col_preco2, col_preco3, col_preco4 = st.columns(4)
 with col_preco1:
-    usd_real = st.number_input("USD/BRL", value=0.0, step=0.01, format="%.2f", key="usd_real_input")
+    usd_real = st.number_input("USD/BRL", value=valor_default_usd, step=0.01, format="%.2f", key="usd_real_input")
 with col_preco2:
-    ny11_real = st.number_input("NY11 (USc/lb)", value=0.0, step=0.10, format="%.2f", key="ny11_real_input")
+    ny11_real = st.number_input("NY11 (USc/lb)", value=valor_default_ny11, step=0.10, format="%.2f", key="ny11_real_input")
 with col_preco3:
-    etanol_anidro_preco_real = st.number_input("Etanol Anidro (R$/m³)", value=0.0, step=10.0, format="%.0f", key="etanol_anidro_preco")
+    etanol_anidro_preco_real = st.number_input("Etanol Anidro (R$/m³)", value=valor_default_etanol_anidro_preco, step=10.0, format="%.0f", key="etanol_anidro_preco")
 with col_preco4:
-    etanol_hidratado_preco_real = st.number_input("Etanol Hidratado (R$/m³)", value=0.0, step=10.0, format="%.0f", key="etanol_hidratado_preco")
+    etanol_hidratado_preco_real = st.number_input("Etanol Hidratado (R$/m³)", value=valor_default_etanol_hidratado_preco, step=10.0, format="%.0f", key="etanol_hidratado_preco")
 
 etanol_anidro_cana_real = None
 etanol_hidratado_cana_real = None
@@ -580,16 +767,16 @@ etanol_anidro_milho_real = None
 etanol_hidratado_milho_real = None
 
 if usar_etanol_manual:
-    st.markdown("**Dados de Etanol (m³):**")
+    st.markdown("**Dados de Etanol Acumulados (m³):**")
     col6, col7, col8, col9 = st.columns(4)
     with col6:
-        etanol_anidro_cana_real = st.number_input("Anidro Cana", value=0.0, step=100.0, format="%.0f")
+        etanol_anidro_cana_real = st.number_input("Anidro Cana Acumulado", value=valor_default_etanol_anidro_cana, step=100.0, format="%.0f")
     with col7:
-        etanol_hidratado_cana_real = st.number_input("Hidratado Cana", value=0.0, step=100.0, format="%.0f")
+        etanol_hidratado_cana_real = st.number_input("Hidratado Cana Acumulado", value=valor_default_etanol_hidratado_cana, step=100.0, format="%.0f")
     with col8:
-        etanol_anidro_milho_real = st.number_input("Anidro Milho", value=0.0, step=100.0, format="%.0f")
+        etanol_anidro_milho_real = st.number_input("Anidro Milho Acumulado", value=valor_default_etanol_anidro_milho, step=100.0, format="%.0f")
     with col9:
-        etanol_hidratado_milho_real = st.number_input("Hidratado Milho", value=0.0, step=100.0, format="%.0f")
+        etanol_hidratado_milho_real = st.number_input("Hidratado Milho Acumulado", value=valor_default_etanol_hidratado_milho, step=100.0, format="%.0f")
 
 col_btn1, col_btn2 = st.columns(2)
 with col_btn1:
@@ -608,12 +795,15 @@ with col_btn1:
                 'etanol_anidro_preco_real': etanol_anidro_preco_real if etanol_anidro_preco_real > 0 else None,
                 'etanol_hidratado_preco_real': etanol_hidratado_preco_real if etanol_hidratado_preco_real > 0 else None,
             }
-            st.success(f"✅ Dados da Q{quinzena_inserir} adicionados/atualizados!")
+            # Salva automaticamente
+            salvar_dados_reais(st.session_state.dados_reais)
+            st.success(f"✅ Dados da Q{quinzena_inserir} adicionados/atualizados e salvos!")
             st.rerun()
 
 with col_btn2:
     if st.button("🗑️ Limpar Todos os Dados Reais", use_container_width=True):
         st.session_state.dados_reais = {}
+        salvar_dados_reais(st.session_state.dados_reais)
         st.rerun()
 
 # Lista dados reais inseridos
@@ -882,3 +1072,4 @@ st.info(
     💡 *A projeção é ajustada automaticamente baseada nos dados reais inseridos. Choques só podem ser aplicados em quinzenas futuras (sem dados reais).*
     """
 )
+
