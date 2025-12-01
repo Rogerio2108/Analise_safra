@@ -19,8 +19,11 @@ import pandas as pd
 import streamlit as st
 from pathlib import Path
 import numpy as np
-from datetime import date
+from datetime import date, datetime, timedelta
 import json
+import requests
+from bs4 import BeautifulSoup
+import re
 from Dados_base import (
     DATA_FILES,
     DESCONTO_VHP_FOB,
@@ -43,6 +46,172 @@ def fmt_br(valor, casas=2):
     if valor is None or pd.isna(valor):
         return ""
     return f"{valor:,.{casas}f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+# ============================================================================
+# FUNÇÕES DE BUSCA DE PREÇOS REAIS
+# ============================================================================
+
+def buscar_dolar_bacen(data_corte=None):
+    """
+    Busca cotação do dólar (USD/BRL) do Banco Central do Brasil.
+
+    Args:
+        data_corte: Data para buscar (datetime.date). Se None, usa data atual.
+
+    Returns:
+        float: Cotação USD/BRL ou None em caso de erro
+    """
+    try:
+        if data_corte is None:
+            data_corte = date.today()
+
+        # API do Banco Central - Série de cotações diárias
+        # Código da série: 1 (USD)
+        # Formato da API: DD/MM/YYYY
+        data_str = data_corte.strftime('%d/%m/%Y')
+
+        # URL da API do BCB - busca por período
+        url = f"https://api.bcb.gov.br/dados/serie/bcdata.sgs.1/dados?formato=json&dataInicial={data_str}&dataFinal={data_str}"
+
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Accept': 'application/json'
+        }
+
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
+
+        dados = response.json()
+
+        if dados and len(dados) > 0:
+            # Pega o último valor disponível
+            cotacao = float(dados[-1]['valor'])
+            return cotacao
+
+        # Se não encontrou na data específica, tenta buscar a última disponível
+        url_ultima = "https://api.bcb.gov.br/dados/serie/bcdata.sgs.1/dados/ultimos/1?formato=json"
+        response = requests.get(url_ultima, headers=headers, timeout=10)
+        response.raise_for_status()
+        dados = response.json()
+
+        if dados and len(dados) > 0:
+            return float(dados[0]['valor'])
+
+        return None
+    except Exception as e:
+        st.warning(f"Erro ao buscar dólar do BACEN: {e}")
+        return None
+
+
+def buscar_ny11_investing(data_corte=None):
+    """
+    Busca cotação do NY11 (Açúcar #11 Futuros) do site Investing.com.
+
+    Args:
+        data_corte: Data para buscar (datetime.date). Se None, usa data atual.
+        Nota: O Investing.com geralmente mostra apenas o preço atual, não histórico.
+
+    Returns:
+        float: Cotação NY11 em USc/lb ou None em caso de erro
+    """
+    try:
+        # Investing.com - Sugar #11 Futures
+        # URL: https://www.investing.com/commodities/us-sugar-no11
+        url = "https://www.investing.com/commodities/us-sugar-no11"
+
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+            'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none'
+        }
+
+        response = requests.get(url, headers=headers, timeout=15)
+        response.raise_for_status()
+
+        soup = BeautifulSoup(response.content, 'html.parser')
+
+        # Estratégia 1: Procurar por elementos com id ou class específicos do Investing
+        preco_encontrado = None
+
+        # IDs comuns do Investing.com para preços
+        ids_possiveis = ['last_last', 'quotes_summary_current_data', 'instrument-header-last']
+        for id_elem in ids_possiveis:
+            elemento = soup.find(id=id_elem)
+            if elemento:
+                texto = elemento.get_text(strip=True)
+                # Remove caracteres não numéricos exceto ponto
+                texto_limpo = re.sub(r'[^\d.]', '', texto)
+                if texto_limpo:
+                    try:
+                        valor = float(texto_limpo)
+                        if 10.0 <= valor <= 30.0:
+                            preco_encontrado = valor
+                            break
+                    except ValueError:
+                        continue
+
+        # Estratégia 2: Procurar por elementos com classes relacionadas a preço
+        if not preco_encontrado:
+            classes_possiveis = ['last', 'price', 'value', 'instrument-price-last', 'pid-8827-last']
+            for classe in classes_possiveis:
+                elementos = soup.find_all(class_=re.compile(classe, re.I))
+                for elemento in elementos:
+                    texto = elemento.get_text(strip=True)
+                    # Procura por padrão de preço
+                    match = re.search(r'(\d{1,2}\.\d{2})', texto)
+                    if match:
+                        valor = float(match.group(1))
+                        if 10.0 <= valor <= 30.0:
+                            preco_encontrado = valor
+                            break
+                if preco_encontrado:
+                    break
+
+        # Estratégia 3: Procurar por atributos data-test
+        if not preco_encontrado:
+            elementos_data = soup.find_all(attrs={'data-test': re.compile(r'price|last|value', re.I)})
+            for elemento in elementos_data:
+                texto = elemento.get_text(strip=True)
+                match = re.search(r'(\d{1,2}\.\d{2})', texto)
+                if match:
+                    valor = float(match.group(1))
+                    if 10.0 <= valor <= 30.0:
+                        preco_encontrado = valor
+                        break
+
+        # Estratégia 4: Procurar em todo o texto da página por padrões
+        if not preco_encontrado:
+            texto_pagina = soup.get_text()
+            # Procura por valores entre 10 e 30 que possam ser o preço
+            padroes = [
+                r'(?:sugar|açúcar|ny11|#11|futures).*?(\d{1,2}\.\d{2})',
+                r'(\d{1,2}\.\d{2}).*?(?:cents|lb|pound|usd)',
+            ]
+            for padrao in padroes:
+                matches = re.findall(padrao, texto_pagina, re.IGNORECASE)
+                for match in matches:
+                    try:
+                        valor = float(match)
+                        if 10.0 <= valor <= 30.0:
+                            preco_encontrado = valor
+                            break
+                    except ValueError:
+                        continue
+                if preco_encontrado:
+                    break
+
+        return preco_encontrado
+
+    except Exception as e:
+        st.warning(f"Erro ao buscar NY11 do Investing.com: {e}")
+        return None
+
 
 # ============================================================================
 # FUNÇÕES DE PERSISTÊNCIA
@@ -643,8 +812,46 @@ data_start = st.sidebar.date_input("Início da safra", value=date(date.today().y
 st.sidebar.divider()
 
 st.sidebar.subheader("💰 Preços Iniciais")
-ny11_inicial = st.sidebar.number_input("NY11 inicial (USc/lb)", value=14.90, step=0.10, format="%.2f")
-usd_inicial = st.sidebar.number_input("USD/BRL inicial", value=4.90, step=0.01, format="%.2f")
+
+# Expander para buscar preços reais
+with st.sidebar.expander("🌐 Buscar Preços Reais", expanded=False):
+    st.caption("💡 Busque preços reais do mercado para preencher automaticamente")
+
+    data_busca = st.date_input(
+        "Data de corte para buscar preços",
+        value=date.today(),
+        max_value=date.today(),
+        key="data_busca_precos"
+    )
+
+    col_busca1, col_busca2 = st.columns(2)
+
+    with col_busca1:
+        if st.button("💵 Buscar USD/BRL", use_container_width=True, key="btn_buscar_usd"):
+            with st.spinner("Buscando dólar do BACEN..."):
+                usd_buscado = buscar_dolar_bacen(data_busca)
+                if usd_buscado:
+                    st.session_state['usd_buscado'] = usd_buscado
+                    st.success(f"✅ USD/BRL: {usd_buscado:.2f}")
+                else:
+                    st.error("❌ Não foi possível buscar o dólar")
+
+    with col_busca2:
+        if st.button("🍬 Buscar NY11", use_container_width=True, key="btn_buscar_ny11"):
+            with st.spinner("Buscando NY11 do Investing.com..."):
+                ny11_buscado = buscar_ny11_investing(data_busca)
+                if ny11_buscado:
+                    st.session_state['ny11_buscado'] = ny11_buscado
+                    st.success(f"✅ NY11: {ny11_buscado:.2f} USc/lb")
+                else:
+                    st.error("❌ Não foi possível buscar o NY11")
+
+# Usa valores buscados se disponíveis, senão usa valores padrão
+usd_inicial_valor = st.session_state.get('usd_buscado', 4.90)
+ny11_inicial_valor = st.session_state.get('ny11_buscado', 14.90)
+
+ny11_inicial = st.sidebar.number_input("NY11 inicial (USc/lb)", value=ny11_inicial_valor, step=0.10, format="%.2f", key="ny11_inicial_input")
+usd_inicial = st.sidebar.number_input("USD/BRL inicial", value=usd_inicial_valor, step=0.01, format="%.2f", key="usd_inicial_input")
 etanol_inicial = st.sidebar.number_input("Etanol inicial (R$/m³)", value=2500.0, step=50.0, format="%.0f")
 
 with st.sidebar.expander("🔧 Parâmetros Avançados", expanded=False):
@@ -751,11 +958,52 @@ with col5:
     usar_etanol_manual = st.checkbox("Inserir etanol manualmente", value=usar_etanol_manual_default)
 
 st.markdown("**💲 Preços no Fim da Quinzena:**")
+
+# Busca de preços para dados reais
+with st.expander("🌐 Buscar Preços Reais para esta Quinzena", expanded=False):
+    st.caption("💡 Busque preços reais do mercado para preencher automaticamente")
+
+    data_busca_real = st.date_input(
+        "Data de corte para buscar preços",
+        value=date.today(),
+        max_value=date.today(),
+        key="data_busca_precos_real"
+    )
+
+    col_busca_real1, col_busca_real2 = st.columns(2)
+
+    with col_busca_real1:
+        if st.button("💵 Buscar USD/BRL", use_container_width=True, key="btn_buscar_usd_real"):
+            with st.spinner("Buscando dólar do BACEN..."):
+                usd_buscado_real = buscar_dolar_bacen(data_busca_real)
+                if usd_buscado_real:
+                    st.session_state['usd_buscado_real'] = usd_buscado_real
+                    st.success(f"✅ USD/BRL: {usd_buscado_real:.2f}")
+                    st.rerun()
+                else:
+                    st.error("❌ Não foi possível buscar o dólar")
+
+    with col_busca_real2:
+        if st.button("🍬 Buscar NY11", use_container_width=True, key="btn_buscar_ny11_real"):
+            with st.spinner("Buscando NY11 do Investing.com..."):
+                ny11_buscado_real = buscar_ny11_investing(data_busca_real)
+                if ny11_buscado_real:
+                    st.session_state['ny11_buscado_real'] = ny11_buscado_real
+                    st.success(f"✅ NY11: {ny11_buscado_real:.2f} USc/lb")
+                    st.rerun()
+                else:
+                    st.error("❌ Não foi possível buscar o NY11")
+
+# Usa valores buscados se disponíveis, senão usa valores padrão
+# Limpa após usar para não persistir
+usd_real_valor = st.session_state.pop('usd_buscado_real', valor_default_usd)
+ny11_real_valor = st.session_state.pop('ny11_buscado_real', valor_default_ny11)
+
 col_preco1, col_preco2, col_preco3, col_preco4 = st.columns(4)
 with col_preco1:
-    usd_real = st.number_input("USD/BRL", value=valor_default_usd, step=0.01, format="%.2f", key="usd_real_input")
+    usd_real = st.number_input("USD/BRL", value=usd_real_valor, step=0.01, format="%.2f", key="usd_real_input")
 with col_preco2:
-    ny11_real = st.number_input("NY11 (USc/lb)", value=valor_default_ny11, step=0.10, format="%.2f", key="ny11_real_input")
+    ny11_real = st.number_input("NY11 (USc/lb)", value=ny11_real_valor, step=0.10, format="%.2f", key="ny11_real_input")
 with col_preco3:
     etanol_anidro_preco_real = st.number_input("Etanol Anidro (R$/m³)", value=valor_default_etanol_anidro_preco, step=10.0, format="%.0f", key="etanol_anidro_preco")
 with col_preco4:
@@ -930,6 +1178,11 @@ with st.sidebar.expander("⚡ Choques de Preços", expanded=False):
                 st.write(f"Q{q}: {choque['tipo']} {mag:.1f}%")
 
 # ============ CÁLCULOS ============
+# NOTA: Os preços iniciais (ny11_inicial, usd_inicial, etanol_inicial) são usados como
+# ponto de partida para a simulação. Quando você altera os parâmetros de safra (moagem, ATR, mix),
+# a produção muda e isso afeta a trajetória dos preços simulados, mas os preços iniciais
+# permanecem como você definiu na sidebar.
+
 df_projecao = gerar_projecao_quinzenal(
     moagem, atr, mix, int(n_quinz), data_start,
     st.session_state.dados_reais if st.session_state.dados_reais else None,
@@ -937,6 +1190,7 @@ df_projecao = gerar_projecao_quinzenal(
 )
 
 # Simula preços
+# Os preços iniciais são usados aqui e a produção calculada afeta a trajetória dos preços
 df_precos, direcao, fator_oferta, choques_aplicados = simular_precos(
     ny11_inicial, usd_inicial, etanol_inicial, int(n_quinz),
     df_projecao[["Quinzena", "Moagem", "ATR", "MIX"]].rename(columns={"MIX": "MIX"}),
