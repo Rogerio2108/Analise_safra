@@ -201,13 +201,13 @@ def criar_grafico_precos(df, ny11_inicial, usd_inicial, etanol_inicial):
     )
 
     # Configuração de eixos X e Y
-    fig.update_xaxes(title_text="<b>Data</b>", row=1, col=1, titlefont=dict(size=12), tickangle=-45, nticks=8)
-    fig.update_xaxes(title_text="<b>Data</b>", row=2, col=1, titlefont=dict(size=12), tickangle=-45, nticks=8)
+    fig.update_xaxes(title="<b>Data</b>", row=1, col=1, title_font=dict(size=12), tickangle=-45, nticks=8)
+    fig.update_xaxes(title="<b>Data</b>", row=2, col=1, title_font=dict(size=12), tickangle=-45, nticks=8)
 
     # Configuração dos eixos Y (usando update_yaxes para subplots com secondary_y)
-    fig.update_yaxes(title_text="<b>NY11 (USc/lb)</b>", row=1, col=1, secondary_y=False, titlefont=dict(size=12))
-    fig.update_yaxes(title_text="<b>USD/BRL</b>", row=1, col=1, secondary_y=True, titlefont=dict(size=12))
-    fig.update_yaxes(title_text="<b>Etanol (R$/m³)</b>", row=2, col=1, titlefont=dict(size=12))
+    fig.update_yaxes(title="<b>NY11 (USc/lb)</b>", row=1, col=1, secondary_y=False, title_font=dict(size=12))
+    fig.update_yaxes(title="<b>USD/BRL</b>", row=1, col=1, secondary_y=True, title_font=dict(size=12))
+    fig.update_yaxes(title="<b>Etanol (R$/m³)</b>", row=2, col=1, title_font=dict(size=12))
 
     return fig
 
@@ -291,10 +291,10 @@ def criar_grafico_producao(df):
         margin=dict(t=80, b=100, l=60, r=60)
     )
 
-    fig.update_xaxes(title_text="<b>Data</b>", row=1, col=1, titlefont=dict(size=12), tickangle=-45, nticks=8)
-    fig.update_xaxes(title_text="<b>Data</b>", row=2, col=1, titlefont=dict(size=12), tickangle=-45, nticks=8)
-    fig.update_yaxes(title_text="<b>Açúcar (t)</b>", row=1, col=1, titlefont=dict(size=12))
-    fig.update_yaxes(title_text="<b>Etanol (m³)</b>", row=2, col=1, titlefont=dict(size=12))
+    fig.update_xaxes(title="<b>Data</b>", row=1, col=1, title_font=dict(size=12), tickangle=-45, nticks=8)
+    fig.update_xaxes(title="<b>Data</b>", row=2, col=1, title_font=dict(size=12), tickangle=-45, nticks=8)
+    fig.update_yaxes(title="<b>Açúcar (t)</b>", row=1, col=1, title_font=dict(size=12))
+    fig.update_yaxes(title="<b>Etanol (m³)</b>", row=2, col=1, title_font=dict(size=12))
 
     return fig
 
@@ -373,12 +373,12 @@ def criar_grafico_parametros_safra(df):
         margin=dict(t=80, b=100, l=60, r=60)
     )
 
-    fig.update_xaxes(title_text="<b>Data</b>", row=1, col=1, titlefont=dict(size=12), tickangle=-45, nticks=8)
-    fig.update_xaxes(title_text="<b>Data</b>", row=2, col=1, titlefont=dict(size=12), tickangle=-45, nticks=8)
-    fig.update_xaxes(title_text="<b>Data</b>", row=3, col=1, titlefont=dict(size=12), tickangle=-45, nticks=8)
-    fig.update_yaxes(title_text="<b>Moagem (ton)</b>", row=1, col=1, titlefont=dict(size=12))
-    fig.update_yaxes(title_text="<b>ATR (kg/t)</b>", row=2, col=1, titlefont=dict(size=12))
-    fig.update_yaxes(title_text="<b>MIX (%)</b>", row=3, col=1, titlefont=dict(size=12))
+    fig.update_xaxes(title="<b>Data</b>", row=1, col=1, title_font=dict(size=12), tickangle=-45, nticks=8)
+    fig.update_xaxes(title="<b>Data</b>", row=2, col=1, title_font=dict(size=12), tickangle=-45, nticks=8)
+    fig.update_xaxes(title="<b>Data</b>", row=3, col=1, title_font=dict(size=12), tickangle=-45, nticks=8)
+    fig.update_yaxes(title="<b>Moagem (ton)</b>", row=1, col=1, title_font=dict(size=12))
+    fig.update_yaxes(title="<b>ATR (kg/t)</b>", row=2, col=1, title_font=dict(size=12))
+    fig.update_yaxes(title="<b>MIX (%)</b>", row=3, col=1, title_font=dict(size=12))
 
     return fig
 
@@ -411,8 +411,8 @@ def criar_grafico_correlacao_precos_producao(df):
         ),
         row=1, col=1, secondary_y=False
     )
-    fig.update_yaxes(title_text="<b>NY11 (USc/lb)</b>", row=1, col=1, secondary_y=False, titlefont=dict(size=11))
-    fig.update_xaxes(title_text="<b>Açúcar (t)</b>", row=1, col=1, titlefont=dict(size=11))
+    fig.update_yaxes(title="<b>NY11 (USc/lb)</b>", row=1, col=1, secondary_y=False, title_font=dict(size=11))
+    fig.update_xaxes(title="<b>Açúcar (t)</b>", row=1, col=1, title_font=dict(size=11))
 
     # Etanol vs Produção Etanol
     fig.add_trace(
@@ -426,8 +426,8 @@ def criar_grafico_correlacao_precos_producao(df):
         ),
         row=1, col=2, secondary_y=False
     )
-    fig.update_yaxes(title_text="<b>Etanol (R$/m³)</b>", row=1, col=2, secondary_y=False, titlefont=dict(size=11))
-    fig.update_xaxes(title_text="<b>Etanol Produzido (m³)</b>", row=1, col=2, titlefont=dict(size=11))
+    fig.update_yaxes(title="<b>Etanol (R$/m³)</b>", row=1, col=2, secondary_y=False, title_font=dict(size=11))
+    fig.update_xaxes(title="<b>Etanol Produzido (m³)</b>", row=1, col=2, title_font=dict(size=11))
 
     # USD vs Açúcar
     fig.add_trace(
@@ -441,8 +441,8 @@ def criar_grafico_correlacao_precos_producao(df):
         ),
         row=2, col=1, secondary_y=False
     )
-    fig.update_yaxes(title_text="<b>USD/BRL</b>", row=2, col=1, secondary_y=False, titlefont=dict(size=11))
-    fig.update_xaxes(title_text="<b>Açúcar (t)</b>", row=2, col=1, titlefont=dict(size=11))
+    fig.update_yaxes(title="<b>USD/BRL</b>", row=2, col=1, secondary_y=False, title_font=dict(size=11))
+    fig.update_xaxes(title="<b>Açúcar (t)</b>", row=2, col=1, title_font=dict(size=11))
 
     # Correlação entre preços
     fig.add_trace(
@@ -456,8 +456,8 @@ def criar_grafico_correlacao_precos_producao(df):
         ),
         row=2, col=2
     )
-    fig.update_xaxes(title_text="<b>NY11 (USc/lb)</b>", row=2, col=2, titlefont=dict(size=11))
-    fig.update_yaxes(title_text="<b>Etanol (R$/m³)</b>", row=2, col=2, titlefont=dict(size=11))
+    fig.update_xaxes(title="<b>NY11 (USc/lb)</b>", row=2, col=2, title_font=dict(size=11))
+    fig.update_yaxes(title="<b>Etanol (R$/m³)</b>", row=2, col=2, title_font=dict(size=11))
 
     fig.update_layout(
         height=750,
@@ -567,12 +567,12 @@ def criar_grafico_acumulado(df):
         margin=dict(t=100, b=100, l=60, r=60)
     )
 
-    fig.update_xaxes(title_text="<b>Data</b>", row=1, col=1, titlefont=dict(size=12), tickangle=-45, nticks=8)
-    fig.update_xaxes(title_text="<b>Data</b>", row=1, col=2, titlefont=dict(size=12), tickangle=-45, nticks=8)
-    fig.update_yaxes(title_text="<b>Acumulado (t)</b>", row=1, col=1, secondary_y=False, titlefont=dict(size=11))
-    fig.update_yaxes(title_text="<b>Quinzenal (t)</b>", row=1, col=1, secondary_y=True, titlefont=dict(size=11))
-    fig.update_yaxes(title_text="<b>Acumulado (m³)</b>", row=1, col=2, secondary_y=False, titlefont=dict(size=11))
-    fig.update_yaxes(title_text="<b>Quinzenal (m³)</b>", row=1, col=2, secondary_y=True, titlefont=dict(size=11))
+    fig.update_xaxes(title="<b>Data</b>", row=1, col=1, title_font=dict(size=12), tickangle=-45, nticks=8)
+    fig.update_xaxes(title="<b>Data</b>", row=1, col=2, title_font=dict(size=12), tickangle=-45, nticks=8)
+    fig.update_yaxes(title="<b>Acumulado (t)</b>", row=1, col=1, secondary_y=False, title_font=dict(size=11))
+    fig.update_yaxes(title="<b>Quinzenal (t)</b>", row=1, col=1, secondary_y=True, title_font=dict(size=11))
+    fig.update_yaxes(title="<b>Acumulado (m³)</b>", row=1, col=2, secondary_y=False, title_font=dict(size=11))
+    fig.update_yaxes(title="<b>Quinzenal (m³)</b>", row=1, col=2, secondary_y=True, title_font=dict(size=11))
 
     return fig
 
@@ -745,10 +745,10 @@ def criar_grafico_distribuicao_producao(df):
         margin=dict(t=80, b=80, l=60, r=60)
     )
 
-    fig.update_xaxes(title_text="<b>Açúcar (t)</b>", row=1, col=1, titlefont=dict(size=12))
-    fig.update_xaxes(title_text="<b>Etanol (m³)</b>", row=1, col=2, titlefont=dict(size=12))
-    fig.update_yaxes(title_text="<b>Frequência</b>", row=1, col=1, titlefont=dict(size=12))
-    fig.update_yaxes(title_text="<b>Frequência</b>", row=1, col=2, titlefont=dict(size=12))
+    fig.update_xaxes(title="<b>Açúcar (t)</b>", row=1, col=1, title_font=dict(size=12))
+    fig.update_xaxes(title="<b>Etanol (m³)</b>", row=1, col=2, title_font=dict(size=12))
+    fig.update_yaxes(title="<b>Frequência</b>", row=1, col=1, title_font=dict(size=12))
+    fig.update_yaxes(title="<b>Frequência</b>", row=1, col=2, title_font=dict(size=12))
 
     return fig
 
@@ -781,8 +781,8 @@ def criar_grafico_correlacao_dolar(df):
         ),
         row=1, col=1
     )
-    fig.update_xaxes(title_text="<b>USD/BRL</b>", row=1, col=1, titlefont=dict(size=11))
-    fig.update_yaxes(title_text="<b>NY11 (USc/lb)</b>", row=1, col=1, titlefont=dict(size=11))
+    fig.update_xaxes(title="<b>USD/BRL</b>", row=1, col=1, title_font=dict(size=11))
+    fig.update_yaxes(title="<b>NY11 (USc/lb)</b>", row=1, col=1, title_font=dict(size=11))
 
     # USD vs Etanol Preço
     fig.add_trace(
@@ -796,8 +796,8 @@ def criar_grafico_correlacao_dolar(df):
         ),
         row=1, col=2
     )
-    fig.update_xaxes(title_text="<b>USD/BRL</b>", row=1, col=2, titlefont=dict(size=11))
-    fig.update_yaxes(title_text="<b>Etanol (R$/m³)</b>", row=1, col=2, titlefont=dict(size=11))
+    fig.update_xaxes(title="<b>USD/BRL</b>", row=1, col=2, title_font=dict(size=11))
+    fig.update_yaxes(title="<b>Etanol (R$/m³)</b>", row=1, col=2, title_font=dict(size=11))
 
     # USD vs Açúcar
     fig.add_trace(
@@ -811,8 +811,8 @@ def criar_grafico_correlacao_dolar(df):
         ),
         row=2, col=1
     )
-    fig.update_xaxes(title_text="<b>USD/BRL</b>", row=2, col=1, titlefont=dict(size=11))
-    fig.update_yaxes(title_text="<b>Açúcar (t)</b>", row=2, col=1, titlefont=dict(size=11))
+    fig.update_xaxes(title="<b>USD/BRL</b>", row=2, col=1, title_font=dict(size=11))
+    fig.update_yaxes(title="<b>Açúcar (t)</b>", row=2, col=1, title_font=dict(size=11))
 
     # USD vs Etanol Produção
     fig.add_trace(
@@ -826,8 +826,8 @@ def criar_grafico_correlacao_dolar(df):
         ),
         row=2, col=2
     )
-    fig.update_xaxes(title_text="<b>USD/BRL</b>", row=2, col=2, titlefont=dict(size=11))
-    fig.update_yaxes(title_text="<b>Etanol (m³)</b>", row=2, col=2, titlefont=dict(size=11))
+    fig.update_xaxes(title="<b>USD/BRL</b>", row=2, col=2, title_font=dict(size=11))
+    fig.update_yaxes(title="<b>Etanol (m³)</b>", row=2, col=2, title_font=dict(size=11))
 
     fig.update_layout(
         height=750,
@@ -993,4 +993,3 @@ col1.metric("Açúcar Total", fmt_br(df_completo["Açúcar (t)"].sum(), 0) + " t
 col2.metric("Etanol Total", fmt_br(df_completo["Etanol (m³)"].sum(), 0) + " m³")
 col3.metric("NY11 Final", f"{df_completo['NY11_cents'].iloc[-1]:.2f} USc/lb")
 col4.metric("USD/BRL Final", f"{df_completo['USD_BRL'].iloc[-1]:.2f}")
-
