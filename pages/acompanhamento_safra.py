@@ -115,13 +115,92 @@ def buscar_dolar_bacen(data_corte=None):
         return None
 
 
+def buscar_ny11_yahoo_finance():
+    """
+    Tenta buscar NY11 do Yahoo Finance (método alternativo).
+
+    Returns:
+        float: Cotação NY11 em USc/lb ou None
+    """
+    try:
+        # Yahoo Finance - Sugar #11 (SB=F)
+        # URL alternativa: usar API não oficial do Yahoo Finance
+        url = "https://query1.finance.yahoo.com/v8/finance/chart/SB=F?interval=1d&range=1d"
+
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Accept': 'application/json'
+        }
+
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
+
+        data = response.json()
+
+        if 'chart' in data and 'result' in data['chart']:
+            result = data['chart']['result']
+            if result and len(result) > 0:
+                meta = result[0].get('meta', {})
+                preco = meta.get('regularMarketPrice') or meta.get('previousClose')
+                if preco:
+                    # Yahoo Finance retorna em cents/lb
+                    return float(preco)
+
+        return None
+    except Exception as e:
+        return None
+
+
+def buscar_ny11_tradingview():
+    """
+    Tenta buscar NY11 do TradingView (scraping).
+
+    Returns:
+        float: Cotação NY11 em USc/lb ou None
+    """
+    try:
+        # TradingView - Sugar #11
+        url = "https://www.tradingview.com/symbols/ICE-SB1!/"
+
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
+        }
+
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
+
+        soup = BeautifulSoup(response.content, 'html.parser')
+
+        # Procura por elementos com preço
+        elementos_preco = soup.find_all(['span', 'div'], class_=re.compile(r'last|price|value', re.I))
+
+        for elemento in elementos_preco:
+            texto = elemento.get_text(strip=True)
+            match = re.search(r'(\d{1,2}\.\d{2})', texto)
+            if match:
+                valor = float(match.group(1))
+                if 10.0 <= valor <= 30.0:
+                    return valor
+
+        return None
+    except Exception as e:
+        return None
+
+
 def buscar_ny11_investing(data_corte=None):
     """
-    Busca cotação do NY11 (Açúcar #11 Futuros) do site Investing.com.
+    Busca cotação do NY11 (Açúcar #11 Futuros) tentando múltiplas fontes.
+
+    Tenta na seguinte ordem:
+    1. Yahoo Finance (API não oficial)
+    2. TradingView (scraping)
+    3. Investing.com (scraping melhorado)
 
     Args:
         data_corte: Data para buscar (datetime.date). Se None, usa data atual.
-        Nota: O Investing.com geralmente mostra apenas o preço atual, não histórico.
+        Nota: A maioria das fontes mostra apenas o preço atual, não histórico.
 
     Returns:
         float: Cotação NY11 em USc/lb ou None em caso de erro
@@ -130,9 +209,19 @@ def buscar_ny11_investing(data_corte=None):
         st.error("❌ Bibliotecas necessárias não estão instaladas. Instale: pip install requests beautifulsoup4")
         return None
 
+    # Tenta Yahoo Finance primeiro (mais confiável)
+    preco = buscar_ny11_yahoo_finance()
+    if preco:
+        return preco
+
+    # Tenta TradingView
+    preco = buscar_ny11_tradingview()
+    if preco:
+        return preco
+
+    # Tenta Investing.com (método original melhorado)
     try:
         # Investing.com - Sugar #11 Futures
-        # URL: https://www.investing.com/commodities/us-sugar-no11
         url = "https://www.investing.com/commodities/us-sugar-no11"
 
         headers = {
@@ -144,7 +233,8 @@ def buscar_ny11_investing(data_corte=None):
             'Upgrade-Insecure-Requests': '1',
             'Sec-Fetch-Dest': 'document',
             'Sec-Fetch-Mode': 'navigate',
-            'Sec-Fetch-Site': 'none'
+            'Sec-Fetch-Site': 'none',
+            'Cache-Control': 'max-age=0'
         }
 
         response = requests.get(url, headers=headers, timeout=15)
@@ -152,80 +242,81 @@ def buscar_ny11_investing(data_corte=None):
 
         soup = BeautifulSoup(response.content, 'html.parser')
 
-        # Estratégia 1: Procurar por elementos com id ou class específicos do Investing
-        preco_encontrado = None
-
-        # IDs comuns do Investing.com para preços
-        ids_possiveis = ['last_last', 'quotes_summary_current_data', 'instrument-header-last']
+        # Estratégia 1: Procurar por elementos com id específicos
+        ids_possiveis = [
+            'last_last', 'quotes_summary_current_data', 'instrument-header-last',
+            'leftColumn', 'rightColumn', 'lastInst'
+        ]
         for id_elem in ids_possiveis:
             elemento = soup.find(id=id_elem)
             if elemento:
                 texto = elemento.get_text(strip=True)
-                # Remove caracteres não numéricos exceto ponto
-                texto_limpo = re.sub(r'[^\d.]', '', texto)
-                if texto_limpo:
-                    try:
-                        valor = float(texto_limpo)
-                        if 10.0 <= valor <= 30.0:
-                            preco_encontrado = valor
-                            break
-                    except ValueError:
-                        continue
-
-        # Estratégia 2: Procurar por elementos com classes relacionadas a preço
-        if not preco_encontrado:
-            classes_possiveis = ['last', 'price', 'value', 'instrument-price-last', 'pid-8827-last']
-            for classe in classes_possiveis:
-                elementos = soup.find_all(class_=re.compile(classe, re.I))
-                for elemento in elementos:
-                    texto = elemento.get_text(strip=True)
-                    # Procura por padrão de preço
-                    match = re.search(r'(\d{1,2}\.\d{2})', texto)
-                    if match:
-                        valor = float(match.group(1))
-                        if 10.0 <= valor <= 30.0:
-                            preco_encontrado = valor
-                            break
-                if preco_encontrado:
-                    break
-
-        # Estratégia 3: Procurar por atributos data-test
-        if not preco_encontrado:
-            elementos_data = soup.find_all(attrs={'data-test': re.compile(r'price|last|value', re.I)})
-            for elemento in elementos_data:
-                texto = elemento.get_text(strip=True)
-                match = re.search(r'(\d{1,2}\.\d{2})', texto)
-                if match:
-                    valor = float(match.group(1))
-                    if 10.0 <= valor <= 30.0:
-                        preco_encontrado = valor
-                        break
-
-        # Estratégia 4: Procurar em todo o texto da página por padrões
-        if not preco_encontrado:
-            texto_pagina = soup.get_text()
-            # Procura por valores entre 10 e 30 que possam ser o preço
-            padroes = [
-                r'(?:sugar|açúcar|ny11|#11|futures).*?(\d{1,2}\.\d{2})',
-                r'(\d{1,2}\.\d{2}).*?(?:cents|lb|pound|usd)',
-            ]
-            for padrao in padroes:
-                matches = re.findall(padrao, texto_pagina, re.IGNORECASE)
+                # Procura por padrão de preço
+                matches = re.findall(r'(\d{1,2}\.\d{2,3})', texto)
                 for match in matches:
                     try:
                         valor = float(match)
                         if 10.0 <= valor <= 30.0:
-                            preco_encontrado = valor
-                            break
+                            return valor
                     except ValueError:
                         continue
-                if preco_encontrado:
-                    break
 
-        return preco_encontrado
+        # Estratégia 2: Procurar por classes comuns
+        classes_possiveis = [
+            'last', 'price', 'value', 'instrument-price-last',
+            'pid-8827-last', 'text-2xl', 'text-3xl', 'font-bold'
+        ]
+        for classe in classes_possiveis:
+            elementos = soup.find_all(class_=re.compile(classe, re.I))
+            for elemento in elementos:
+                texto = elemento.get_text(strip=True)
+                matches = re.findall(r'(\d{1,2}\.\d{2,3})', texto)
+                for match in matches:
+                    try:
+                        valor = float(match)
+                        if 10.0 <= valor <= 30.0:
+                            return valor
+                    except ValueError:
+                        continue
+
+        # Estratégia 3: Procurar por atributos data-test ou data-symbol
+        elementos_data = soup.find_all(attrs={'data-test': True})
+        elementos_data.extend(soup.find_all(attrs={'data-symbol': True}))
+
+        for elemento in elementos_data:
+            texto = elemento.get_text(strip=True)
+            matches = re.findall(r'(\d{1,2}\.\d{2,3})', texto)
+            for match in matches:
+                try:
+                    valor = float(match)
+                    if 10.0 <= valor <= 30.0:
+                        return valor
+                except ValueError:
+                    continue
+
+        # Estratégia 4: Procurar em todo o texto da página
+        texto_pagina = soup.get_text()
+        # Procura por padrões mais específicos
+        padroes = [
+            r'(?:Sugar|Açúcar|NY11|#11|Futures).*?(\d{1,2}\.\d{2,3})',
+            r'(\d{1,2}\.\d{2,3}).*?(?:cents|lb|pound|USD)',
+            r'Last[:\s]+(\d{1,2}\.\d{2,3})',
+            r'Price[:\s]+(\d{1,2}\.\d{2,3})',
+        ]
+        for padrao in padroes:
+            matches = re.findall(padrao, texto_pagina, re.IGNORECASE)
+            for match in matches:
+                try:
+                    valor = float(match)
+                    if 10.0 <= valor <= 30.0:
+                        return valor
+                except ValueError:
+                    continue
+
+        return None
 
     except Exception as e:
-        st.warning(f"Erro ao buscar NY11 do Investing.com: {e}")
+        st.warning(f"Erro ao buscar NY11: {e}")
         return None
 
 
