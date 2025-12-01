@@ -621,6 +621,8 @@ def criar_grafico_heatmap_correlacao(df):
         text_colors.append(color_row)
 
     # Cria heatmap com texto
+    # Nota: Não configuramos colorbar aqui para evitar problemas de compatibilidade
+    # O Plotly usará configurações padrão que são compatíveis com todas as versões
     fig = go.Figure(data=go.Heatmap(
         z=df_corr.values,
         x=x_labels,
@@ -633,7 +635,6 @@ def criar_grafico_heatmap_correlacao(df):
         texttemplate='%{text}',
         textfont=dict(size=12, family="Arial"),
         showscale=True,
-        colorbar=dict(title="Correlação", titlefont=dict(size=12)),
         hovertemplate='<b>%{y} vs %{x}</b><br>Correlação: %{z:.2f}<extra></extra>'
     ))
 
@@ -993,3 +994,4 @@ col1.metric("Açúcar Total", fmt_br(df_completo["Açúcar (t)"].sum(), 0) + " t
 col2.metric("Etanol Total", fmt_br(df_completo["Etanol (m³)"].sum(), 0) + " m³")
 col3.metric("NY11 Final", f"{df_completo['NY11_cents'].iloc[-1]:.2f} USc/lb")
 col4.metric("USD/BRL Final", f"{df_completo['USD_BRL'].iloc[-1]:.2f}")
+
