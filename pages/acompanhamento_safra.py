@@ -963,48 +963,28 @@ with st.sidebar.expander("🌐 Buscar Preços Reais", expanded=False):
         key="data_busca_precos"
     )
 
-    col_busca1, col_busca2 = st.columns(2)
+    if st.button("💵 Buscar USD/BRL", use_container_width=True, key="btn_buscar_usd"):
+        with st.spinner("Buscando dólar do BACEN..."):
+            usd_buscado = buscar_dolar_bacen(data_busca)
+            if usd_buscado:
+                st.session_state['usd_buscado'] = usd_buscado
+                st.session_state['usd_buscado_data'] = data_busca
+                st.success(f"✅ USD/BRL encontrado: **{usd_buscado:.4f}**")
+            else:
+                st.error("❌ Não foi possível buscar o dólar")
 
-    with col_busca1:
-        if st.button("💵 Buscar USD/BRL", use_container_width=True, key="btn_buscar_usd"):
-            with st.spinner("Buscando dólar do BACEN..."):
-                usd_buscado = buscar_dolar_bacen(data_busca)
-                if usd_buscado:
-                    st.session_state['usd_buscado'] = usd_buscado
-                    st.session_state['usd_buscado_data'] = data_busca
-                    st.success(f"✅ USD/BRL encontrado: **{usd_buscado:.4f}**")
-                else:
-                    st.error("❌ Não foi possível buscar o dólar")
-
-    with col_busca2:
-        if st.button("🍬 Buscar NY11", use_container_width=True, key="btn_buscar_ny11"):
-            with st.spinner("Buscando NY11..."):
-                ny11_buscado = buscar_ny11_investing(data_busca)
-                if ny11_buscado:
-                    st.session_state['ny11_buscado'] = ny11_buscado
-                    st.session_state['ny11_buscado_data'] = data_busca
-                    st.success(f"✅ NY11 encontrado: **{ny11_buscado:.2f}** USc/lb")
-                else:
-                    st.error("❌ Não foi possível buscar o NY11")
-
-    # Exibe valores encontrados se disponíveis
+    # Exibe valor encontrado se disponível
     if 'usd_buscado' in st.session_state:
         data_usd = st.session_state.get('usd_buscado_data', data_busca)
         st.info(f"💵 **USD/BRL encontrado:** {st.session_state['usd_buscado']:.4f} (Data: {data_usd.strftime('%d/%m/%Y')})")
 
-    if 'ny11_buscado' in st.session_state:
-        data_ny11 = st.session_state.get('ny11_buscado_data', data_busca)
-        st.info(f"🍬 **NY11 encontrado:** {st.session_state['ny11_buscado']:.2f} USc/lb (Data: {data_ny11.strftime('%d/%m/%Y')})")
-
 # Usa valores buscados se disponíveis, senão usa valores padrão
 usd_inicial_valor = st.session_state.get('usd_buscado', 4.90)
-ny11_inicial_valor = st.session_state.get('ny11_buscado', 14.90)
 
 # Converte valores com segurança para float
 usd_inicial_valor_safe = safe_float(usd_inicial_valor, 4.90)
-ny11_inicial_valor_safe = safe_float(ny11_inicial_valor, 14.90)
 
-ny11_inicial = st.sidebar.number_input("NY11 inicial (USc/lb)", value=ny11_inicial_valor_safe, step=0.10, format="%.2f", key="ny11_inicial_input")
+ny11_inicial = st.sidebar.number_input("NY11 inicial (USc/lb)", value=14.90, step=0.10, format="%.2f", key="ny11_inicial_input")
 usd_inicial = st.sidebar.number_input("USD/BRL inicial", value=usd_inicial_valor_safe, step=0.01, format="%.4f", key="usd_inicial_input")
 etanol_inicial = st.sidebar.number_input("Etanol inicial (R$/m³)", value=2500.0, step=50.0, format="%.0f")
 
@@ -1124,55 +1104,34 @@ with st.expander("🌐 Buscar Preços Reais para esta Quinzena", expanded=False)
         key="data_busca_precos_real"
     )
 
-    col_busca_real1, col_busca_real2 = st.columns(2)
+    if st.button("💵 Buscar USD/BRL", use_container_width=True, key="btn_buscar_usd_real"):
+        with st.spinner("Buscando dólar do BACEN..."):
+            usd_buscado_real = buscar_dolar_bacen(data_busca_real)
+            if usd_buscado_real:
+                st.session_state['usd_buscado_real'] = usd_buscado_real
+                st.session_state['usd_buscado_real_data'] = data_busca_real
+                st.success(f"✅ USD/BRL encontrado: **{usd_buscado_real:.4f}**")
+                st.rerun()
+            else:
+                st.error("❌ Não foi possível buscar o dólar")
 
-    with col_busca_real1:
-        if st.button("💵 Buscar USD/BRL", use_container_width=True, key="btn_buscar_usd_real"):
-            with st.spinner("Buscando dólar do BACEN..."):
-                usd_buscado_real = buscar_dolar_bacen(data_busca_real)
-                if usd_buscado_real:
-                    st.session_state['usd_buscado_real'] = usd_buscado_real
-                    st.session_state['usd_buscado_real_data'] = data_busca_real
-                    st.success(f"✅ USD/BRL encontrado: **{usd_buscado_real:.4f}**")
-                    st.rerun()
-                else:
-                    st.error("❌ Não foi possível buscar o dólar")
-
-    with col_busca_real2:
-        if st.button("🍬 Buscar NY11", use_container_width=True, key="btn_buscar_ny11_real"):
-            with st.spinner("Buscando NY11..."):
-                ny11_buscado_real = buscar_ny11_investing(data_busca_real)
-                if ny11_buscado_real:
-                    st.session_state['ny11_buscado_real'] = ny11_buscado_real
-                    st.session_state['ny11_buscado_real_data'] = data_busca_real
-                    st.success(f"✅ NY11 encontrado: **{ny11_buscado_real:.2f}** USc/lb")
-                    st.rerun()
-                else:
-                    st.error("❌ Não foi possível buscar o NY11")
-
-    # Exibe valores encontrados se disponíveis
+    # Exibe valor encontrado se disponível
     if 'usd_buscado_real' in st.session_state:
         data_usd_real = st.session_state.get('usd_buscado_real_data', data_busca_real)
         st.info(f"💵 **USD/BRL encontrado:** {st.session_state['usd_buscado_real']:.4f} (Data: {data_usd_real.strftime('%d/%m/%Y')})")
 
-    if 'ny11_buscado_real' in st.session_state:
-        data_ny11_real = st.session_state.get('ny11_buscado_real_data', data_busca_real)
-        st.info(f"🍬 **NY11 encontrado:** {st.session_state['ny11_buscado_real']:.2f} USc/lb (Data: {data_ny11_real.strftime('%d/%m/%Y')})")
-
 # Usa valores buscados se disponíveis, senão usa valores padrão
 # Limpa após usar para não persistir
 usd_real_valor = st.session_state.pop('usd_buscado_real', valor_default_usd)
-ny11_real_valor = st.session_state.pop('ny11_buscado_real', valor_default_ny11)
 
 # Converte valores com segurança para float
 usd_real_valor_safe = safe_float(usd_real_valor, valor_default_usd)
-ny11_real_valor_safe = safe_float(ny11_real_valor, valor_default_ny11)
 
 col_preco1, col_preco2, col_preco3, col_preco4 = st.columns(4)
 with col_preco1:
     usd_real = st.number_input("USD/BRL", value=usd_real_valor_safe, step=0.0001, format="%.4f", key="usd_real_input")
 with col_preco2:
-    ny11_real = st.number_input("NY11 (USc/lb)", value=ny11_real_valor_safe, step=0.10, format="%.2f", key="ny11_real_input")
+    ny11_real = st.number_input("NY11 (USc/lb)", value=safe_float(valor_default_ny11, 0.0), step=0.10, format="%.2f", key="ny11_real_input")
 with col_preco3:
     etanol_anidro_preco_real = st.number_input("Etanol Anidro (R$/m³)", value=valor_default_etanol_anidro_preco, step=10.0, format="%.0f", key="etanol_anidro_preco")
 with col_preco4:
