@@ -1162,14 +1162,14 @@ with col_btn1:
                 'moagem_real': moagem_real if moagem_real > 0 else None,
                 'atr_real': atr_real if atr_real > 0 else None,
                 'mix_real': mix_real if mix_real > 0 else None,
-                'etanol_anidro_cana_real': etanol_anidro_cana_real if usar_etanol_manual and etanol_anidro_cana_real > 0 else None,
-                'etanol_hidratado_cana_real': etanol_hidratado_cana_real if usar_etanol_manual and etanol_hidratado_cana_real > 0 else None,
-                'etanol_anidro_milho_real': etanol_anidro_milho_real if usar_etanol_manual and etanol_anidro_milho_real > 0 else None,
-                'etanol_hidratado_milho_real': etanol_hidratado_milho_real if usar_etanol_manual and etanol_hidratado_milho_real > 0 else None,
-                'usd_real': usd_real if usd_real > 0 else None,
-                'ny11_real': ny11_real if ny11_real > 0 else None,
-                'etanol_anidro_preco_real': etanol_anidro_preco_real if etanol_anidro_preco_real > 0 else None,
-                'etanol_hidratado_preco_real': etanol_hidratado_preco_real if etanol_hidratado_preco_real > 0 else None,
+                'etanol_anidro_cana_real': etanol_anidro_cana_real if usar_etanol_manual and etanol_anidro_cana_real and safe_float(etanol_anidro_cana_real, 0) > 0 else None,
+                'etanol_hidratado_cana_real': etanol_hidratado_cana_real if usar_etanol_manual and etanol_hidratado_cana_real and safe_float(etanol_hidratado_cana_real, 0) > 0 else None,
+                'etanol_anidro_milho_real': etanol_anidro_milho_real if usar_etanol_manual and etanol_anidro_milho_real and safe_float(etanol_anidro_milho_real, 0) > 0 else None,
+                'etanol_hidratado_milho_real': etanol_hidratado_milho_real if usar_etanol_manual and etanol_hidratado_milho_real and safe_float(etanol_hidratado_milho_real, 0) > 0 else None,
+                'usd_real': usd_real if usd_real and safe_float(usd_real, 0) > 0 else None,
+                'ny11_real': ny11_real if ny11_real and safe_float(ny11_real, 0) > 0 else None,
+                'etanol_anidro_preco_real': etanol_anidro_preco_real if etanol_anidro_preco_real and safe_float(etanol_anidro_preco_real, 0) > 0 else None,
+                'etanol_hidratado_preco_real': etanol_hidratado_preco_real if etanol_hidratado_preco_real and safe_float(etanol_hidratado_preco_real, 0) > 0 else None,
             }
             # Salva automaticamente
             salvar_dados_reais(st.session_state.dados_reais)
@@ -1454,4 +1454,3 @@ st.info(
     💡 *A projeção é ajustada automaticamente baseada nos dados reais inseridos. Choques só podem ser aplicados em quinzenas futuras (sem dados reais).*
     """
 )
-
