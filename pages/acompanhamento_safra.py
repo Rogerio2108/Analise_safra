@@ -616,16 +616,26 @@ def gerar_projecao_quinzenal(moagem_total, atr_medio, mix_medio, n_quinzenas=24,
                 break
 
     # Ajusta distribuição futura da moagem para manter o total final estimado
-    if ultima_quinzena_real > 0 and ultima_quinzena_real < n_quinzenas:
+    # IMPORTANTE: As quinzenas futuras começam APÓS a última quinzena com dados reais
+    if ultima_quinzena_real > 0:
+        primeira_quinzena_futura = ultima_quinzena_real + 1
+    else:
+        primeira_quinzena_futura = 1  # Se não há dados reais, todas são futuras
+
+    if ultima_quinzena_real > 0 and primeira_quinzena_futura <= n_quinzenas:
         moagem_restante = moagem_total - moagem_real_acum_total
-        pesos_futuros = [pct_moagem[i] for i in range(ultima_quinzena_real, n_quinzenas)]
+
+        # Calcula os pesos das quinzenas futuras (após a última com dados reais)
+        pesos_futuros = [pct_moagem[i] for i in range(primeira_quinzena_futura - 1, n_quinzenas)]
         soma_pesos_futuros = sum(pesos_futuros) if pesos_futuros else 1.0
 
-        if soma_pesos_futuros > 0 and moagem_restante >= 0: # Ensure moagem_restante is not negative
-            for i in range(ultima_quinzena_real, n_quinzenas):
+        if soma_pesos_futuros > 0 and moagem_restante >= 0:
+            # Redistribui proporcionalmente ao perfil
+            for i in range(primeira_quinzena_futura - 1, n_quinzenas):
                 moagem_distribuida[i] = moagem_restante * (pct_moagem[i] / soma_pesos_futuros)
-        elif moagem_restante < 0: # If real moagem exceeded total, set future to 0
-            for i in range(ultima_quinzena_real, n_quinzenas):
+        elif moagem_restante < 0:
+            # Se a moagem real excedeu o total, zera as futuras
+            for i in range(primeira_quinzena_futura - 1, n_quinzenas):
                 moagem_distribuida[i] = 0
 
     # Ajusta ATR e MIX para manterem a média final estimada
@@ -656,19 +666,50 @@ def gerar_projecao_quinzenal(moagem_total, atr_medio, mix_medio, n_quinzenas=24,
     fator_atr_futuro = fator_atr_global
     fator_mix_futuro = fator_mix_global
 
-    if moagem_real_para_media > 0 and ultima_quinzena_real < n_quinzenas:
-        moagem_futura_total = sum(moagem_distribuida[i] for i in range(ultima_quinzena_real, n_quinzenas))
+    # Ajusta fatores de ATR e MIX para as quinzenas futuras
+    # Só ajusta se houver dados reais e quinzenas futuras
+    if ultima_quinzena_real > 0 and primeira_quinzena_futura <= n_quinzenas:
+        moagem_futura_total = sum(moagem_distribuida[i] for i in range(primeira_quinzena_futura - 1, n_quinzenas))
 
         if moagem_futura_total > 0:
             # Calcula o ATR e MIX total que ainda precisa ser alcançado
-            atr_total_restante = (atr_medio * moagem_total) - atr_real_acum_ponderado
-            mix_total_restante = (mix_medio * moagem_total) - mix_real_acum_ponderado
+            # Se não há dados reais de ATR/MIX, usa os valores projetados das quinzenas com dados reais
+            if atr_real_acum_ponderado == 0:
+                # Não há dados reais de ATR, então calcula baseado nas projeções das quinzenas com dados reais
+                atr_projetado_acum = 0
+                for q in range(1, ultima_quinzena_real + 1):
+                    if q in dados_reais and dados_reais[q].get('moagem_real') is not None:
+                        if q == 1:
+                            moagem_q_proj = dados_reais[q].get('moagem_real', 0)
+                        else:
+                            moagem_ant = dados_reais.get(q - 1, {}).get('moagem_real', 0) or 0
+                            moagem_q_proj = dados_reais[q].get('moagem_real', 0) - moagem_ant
+                        atr_projetado_acum += perfil_atr_ajustado[q - 1] * fator_atr_global * moagem_q_proj
+                atr_total_restante = (atr_medio * moagem_total) - atr_projetado_acum
+            else:
+                atr_total_restante = (atr_medio * moagem_total) - atr_real_acum_ponderado
+
+            if mix_real_acum_ponderado == 0:
+                # Não há dados reais de MIX, então calcula baseado nas projeções das quinzenas com dados reais
+                mix_projetado_acum = 0
+                for q in range(1, ultima_quinzena_real + 1):
+                    if q in dados_reais and dados_reais[q].get('moagem_real') is not None:
+                        if q == 1:
+                            moagem_q_proj = dados_reais[q].get('moagem_real', 0)
+                        else:
+                            moagem_ant = dados_reais.get(q - 1, {}).get('moagem_real', 0) or 0
+                            moagem_q_proj = dados_reais[q].get('moagem_real', 0) - moagem_ant
+                        mix_projetado_acum += perfil_mix_ajustado[q - 1] * fator_mix_global * moagem_q_proj
+                mix_total_restante = (mix_medio * moagem_total) - mix_projetado_acum
+            else:
+                mix_total_restante = (mix_medio * moagem_total) - mix_real_acum_ponderado
 
             # Calcula o somarproduto das quinzenas futuras com os perfis originais
+            # Usa a moagem_distribuida já ajustada para manter a proporção do perfil
             somarproduto_atr_futuro_base = sum(moagem_distribuida[i] * perfil_atr_ajustado[i]
-                                                for i in range(ultima_quinzena_real, n_quinzenas))
+                                                for i in range(primeira_quinzena_futura - 1, n_quinzenas))
             somarproduto_mix_futuro_base = sum(moagem_distribuida[i] * perfil_mix_ajustado[i]
-                                                for i in range(ultima_quinzena_real, n_quinzenas))
+                                                for i in range(primeira_quinzena_futura - 1, n_quinzenas))
 
             if somarproduto_atr_futuro_base > 0:
                 fator_atr_futuro = atr_total_restante / somarproduto_atr_futuro_base
@@ -707,14 +748,26 @@ def gerar_projecao_quinzenal(moagem_total, atr_medio, mix_medio, n_quinzenas=24,
                 moagem_acum_anterior = dados_reais[quinzena - 1].get('moagem_real', 0) if (quinzena - 1) in dados_reais else 0
                 moagem_q = moagem_acum_atual - moagem_acum_anterior
 
-            # ATR e Mix são médios, usa o valor real se disponível
-            atr_q = dados_reais[quinzena].get('atr_real', perfil_atr_ajustado[i] * fator_atr_futuro)
-            mix_q = dados_reais[quinzena].get('mix_real', perfil_mix_ajustado[i] * fator_mix_futuro)
+            # ATR e Mix são médios, usa o valor real se disponível, senão usa o perfil ajustado
+            atr_q = dados_reais[quinzena].get('atr_real')
+            if atr_q is None:
+                atr_q = perfil_atr_ajustado[i] * fator_atr_global
+
+            mix_q = dados_reais[quinzena].get('mix_real')
+            if mix_q is None:
+                mix_q = perfil_mix_ajustado[i] * fator_mix_global
         else:
-            # Usa projeção ajustada
-            moagem_q = moagem_distribuida[i]
-            atr_q = perfil_atr_ajustado[i] * fator_atr_futuro
-            mix_q = perfil_mix_ajustado[i] * fator_mix_futuro
+            # Usa projeção ajustada para quinzenas futuras
+            # Se está na primeira quinzena futura ou depois, usa os fatores ajustados
+            if quinzena >= primeira_quinzena_futura:
+                moagem_q = moagem_distribuida[i]
+                atr_q = perfil_atr_ajustado[i] * fator_atr_futuro
+                mix_q = perfil_mix_ajustado[i] * fator_mix_futuro
+            else:
+                # Quinzenas passadas sem dados reais (não deveria acontecer, mas por segurança)
+                moagem_q = moagem_distribuida[i]
+                atr_q = perfil_atr_ajustado[i] * fator_atr_global
+                mix_q = perfil_mix_ajustado[i] * fator_mix_global
 
         # Aplica choques de safra apenas em quinzenas futuras (sem dados reais)
         if not tem_dados_reais and choques_safra and quinzena in choques_safra:
