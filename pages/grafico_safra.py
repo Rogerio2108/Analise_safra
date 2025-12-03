@@ -81,7 +81,7 @@ CORES = {
 
 def criar_grafico_comparacao_real_projetado(df, coluna, titulo, unidade="", eixo_y=""):
     """
-    Cria gráfico comparando dados reais vs projetados.
+    Cria gráfico comparando dados reais vs projetados vs baseline.
 
     Args:
         df: DataFrame com dados
@@ -91,6 +91,19 @@ def criar_grafico_comparacao_real_projetado(df, coluna, titulo, unidade="", eixo
         eixo_y: Label do eixo Y
     """
     fig = go.Figure()
+
+    # Baseline (se disponível)
+    coluna_baseline = coluna.replace('Moagem', 'Moagem Baseline').replace('ATR', 'ATR Baseline').replace('MIX', 'MIX Baseline').replace('Açúcar (t)', 'Açúcar Baseline (t)').replace('Etanol Total (m³)', 'Etanol Baseline (m³)')
+    if coluna_baseline in df.columns:
+        fig.add_trace(go.Scatter(
+            x=df['Data'],
+            y=df[coluna_baseline],
+            name='<b>Baseline (Perfil Ideal)</b>',
+            line=dict(color='#17becf', width=2.5, dash='dot'),
+            mode='lines+markers',
+            marker=dict(size=5, symbol='x'),
+            hovertemplate=f'<b>Baseline</b><br>Data: %{{x}}<br>{titulo}: %{{y:,.0f}} {unidade}<extra></extra>'
+        ))
 
     # Dados projetados (sempre presentes)
     fig.add_trace(go.Scatter(
@@ -216,6 +229,264 @@ def criar_grafico_comparacao_real_projetado(df, coluna, titulo, unidade="", eixo
     )
 
     fig.update_xaxes(tickangle=-45, nticks=10)
+
+    return fig
+
+
+def criar_grafico_comparacao_baseline(df, coluna_proj, coluna_baseline, titulo, unidade="", eixo_y=""):
+    """
+    Cria gráfico comparando dados projetados e reais com baseline.
+
+    Args:
+        df: DataFrame com dados
+        coluna_proj: Nome da coluna projetada
+        coluna_baseline: Nome da coluna baseline
+        titulo: Título do gráfico
+        unidade: Unidade de medida
+        eixo_y: Label do eixo Y
+    """
+    fig = go.Figure()
+
+    # Baseline (perfil ideal)
+    if coluna_baseline in df.columns:
+        fig.add_trace(go.Scatter(
+            x=df['Data'],
+            y=df[coluna_baseline],
+            name='<b>Baseline (Perfil Ideal)</b>',
+            line=dict(color='#17becf', width=3, dash='dot'),
+            mode='lines+markers',
+            marker=dict(size=6, symbol='x'),
+            hovertemplate=f'<b>Baseline</b><br>Data: %{{x}}<br>{titulo}: %{{y:,.2f}} {unidade}<extra></extra>'
+        ))
+
+    # Dados projetados
+    fig.add_trace(go.Scatter(
+        x=df['Data'],
+        y=df[coluna_proj],
+        name='<b>Projetado</b>',
+        line=dict(color=CORES['Projetado'], width=3, dash='dash'),
+        mode='lines+markers',
+        marker=dict(size=6, symbol='circle'),
+        hovertemplate=f'<b>Projetado</b><br>Data: %{{x}}<br>{titulo}: %{{y:,.2f}} {unidade}<extra></extra>'
+    ))
+
+    # Dados reais (se disponíveis)
+    if 'dados_reais' in st.session_state and st.session_state.dados_reais:
+        dados_reais_list = []
+        datas_reais = []
+
+        for quinzena in sorted(st.session_state.dados_reais.keys()):
+            if quinzena <= len(df):
+                dados_q = st.session_state.dados_reais[quinzena]
+                data_q = df.iloc[quinzena - 1]['Data']
+
+                valor_real = None
+                if 'moagem' in coluna_proj.lower():
+                    moagem_acum = dados_q.get('moagem_real')
+                    if moagem_acum:
+                        if quinzena == 1:
+                            valor_real = moagem_acum
+                        else:
+                            moagem_ant = st.session_state.dados_reais.get(quinzena - 1, {}).get('moagem_real', 0) or 0
+                            valor_real = moagem_acum - moagem_ant
+                elif 'atr' in coluna_proj.lower():
+                    valor_real = dados_q.get('atr_real')
+                elif 'mix' in coluna_proj.lower():
+                    valor_real = dados_q.get('mix_real')
+
+                if valor_real and valor_real > 0 and data_q:
+                    dados_reais_list.append(valor_real)
+                    datas_reais.append(data_q)
+
+        if dados_reais_list:
+            fig.add_trace(go.Scatter(
+                x=datas_reais,
+                y=dados_reais_list,
+                name='<b>Real</b>',
+                line=dict(color=CORES['Real'], width=4),
+                mode='lines+markers',
+                marker=dict(size=8, symbol='diamond'),
+                hovertemplate=f'<b>Real</b><br>Data: %{{x}}<br>{titulo}: %{{y:,.2f}} {unidade}<extra></extra>'
+            ))
+
+    fig.update_layout(
+        title=dict(text=f'<b>{titulo} - Baseline vs Projetado vs Real</b>', font=dict(size=16)),
+        height=500,
+        hovermode='x unified',
+        template='plotly_white',
+        font=dict(family="Arial", size=11),
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="center",
+            x=0.5,
+            font=dict(size=12),
+            bgcolor='rgba(255,255,255,0.0)',
+            bordercolor='rgba(0,0,0,0)',
+            borderwidth=0
+        ),
+        margin=dict(t=100, b=80, l=60, r=60),
+        xaxis=dict(title="<b>Data</b>", title_font=dict(size=12)),
+        yaxis=dict(title=f"<b>{eixo_y or titulo} {unidade}</b>", title_font=dict(size=12))
+    )
+
+    fig.update_xaxes(tickangle=-45, nticks=10)
+
+    return fig
+
+
+def criar_grafico_desvios_baseline(df):
+    """
+    Cria gráfico de desvios entre dados reais/projetados e baseline.
+    """
+    # Verifica se há colunas baseline
+    colunas_baseline = [col for col in df.columns if 'Baseline' in col]
+    if not colunas_baseline:
+        return None
+
+    fig = make_subplots(
+        rows=2, cols=2,
+        subplot_titles=(
+            '<b>Desvio Moagem da Baseline (%)</b>',
+            '<b>Desvio ATR da Baseline (%)</b>',
+            '<b>Desvio MIX da Baseline (%)</b>',
+            '<b>Resumo de Desvios da Baseline</b>'
+        ),
+        specs=[[{"type": "scatter"}, {"type": "scatter"}],
+               [{"type": "scatter"}, {"type": "bar"}]],
+        vertical_spacing=0.15,
+        horizontal_spacing=0.12
+    )
+
+    # Inicializa listas de desvios
+    desvios_moagem = []
+    desvios_atr = []
+    desvios_mix = []
+    datas_moagem = []
+    datas_atr = []
+    datas_mix = []
+
+    # Desvios de Moagem
+    if 'Moagem Baseline' in df.columns:
+        for i, row in df.iterrows():
+            if row['Moagem Baseline'] > 0:
+                desvio = ((row['Moagem'] - row['Moagem Baseline']) / row['Moagem Baseline']) * 100
+                desvios_moagem.append(desvio)
+                datas_moagem.append(row['Data'])
+
+        if desvios_moagem:
+            fig.add_trace(
+                go.Scatter(
+                    x=datas_moagem,
+                    y=desvios_moagem,
+                    mode='lines+markers',
+                    name='<b>Moagem</b>',
+                    line=dict(color=CORES['Moagem'], width=2),
+                    marker=dict(size=6),
+                    hovertemplate='<b>Desvio Moagem</b><br>Data: %{x}<br>Desvio: %{y:.2f}%<extra></extra>',
+                    showlegend=False
+                ),
+                row=1, col=1
+            )
+
+    # Desvios de ATR
+    if 'ATR Baseline' in df.columns:
+        for i, row in df.iterrows():
+            if row['ATR Baseline'] > 0:
+                desvio = ((row['ATR'] - row['ATR Baseline']) / row['ATR Baseline']) * 100
+                desvios_atr.append(desvio)
+                datas_atr.append(row['Data'])
+
+        if desvios_atr:
+            fig.add_trace(
+                go.Scatter(
+                    x=datas_atr,
+                    y=desvios_atr,
+                    mode='lines+markers',
+                    name='<b>ATR</b>',
+                    line=dict(color=CORES['ATR'], width=2),
+                    marker=dict(size=6),
+                    hovertemplate='<b>Desvio ATR</b><br>Data: %{x}<br>Desvio: %{y:.2f}%<extra></extra>',
+                    showlegend=False
+                ),
+                row=1, col=2
+            )
+
+    # Desvios de MIX
+    if 'MIX Baseline' in df.columns:
+        for i, row in df.iterrows():
+            if row['MIX Baseline'] > 0:
+                desvio = ((row['MIX'] - row['MIX Baseline']) / row['MIX Baseline']) * 100
+                desvios_mix.append(desvio)
+                datas_mix.append(row['Data'])
+
+        if desvios_mix:
+            fig.add_trace(
+                go.Scatter(
+                    x=datas_mix,
+                    y=desvios_mix,
+                    mode='lines+markers',
+                    name='<b>MIX</b>',
+                    line=dict(color=CORES['MIX'], width=2),
+                    marker=dict(size=6),
+                    hovertemplate='<b>Desvio MIX</b><br>Data: %{x}<br>Desvio: %{y:.2f}%<extra></extra>',
+                    showlegend=False
+                ),
+                row=2, col=1
+            )
+
+    # Resumo de desvios médios
+    desvios_medios = []
+    labels = []
+    if desvios_moagem:
+        desvios_medios.append(np.mean(desvios_moagem))
+        labels.append('Moagem')
+    if 'ATR Baseline' in df.columns and desvios_atr:
+        desvios_medios.append(np.mean(desvios_atr))
+        labels.append('ATR')
+    if 'MIX Baseline' in df.columns and desvios_mix:
+        desvios_medios.append(np.mean(desvios_mix))
+        labels.append('MIX')
+
+    if desvios_medios:
+        cores_barras = [CORES.get(label, '#1f77b4') for label in labels]
+        fig.add_trace(
+            go.Bar(
+                x=labels,
+                y=desvios_medios,
+                marker_color=cores_barras,
+                opacity=0.85,
+                text=[f'{d:.2f}%' for d in desvios_medios],
+                textposition='outside',
+                hovertemplate='<b>%{x}</b><br>Desvio Médio: %{y:.2f}%<extra></extra>',
+                showlegend=False
+            ),
+            row=2, col=2
+        )
+
+    # Linha de referência zero
+    for row in [1, 2]:
+        for col in [1, 2]:
+            if row == 2 and col == 2:
+                continue
+            fig.add_hline(y=0, line_dash="dash", line_color="gray", opacity=0.5, row=row, col=col)
+
+    fig.update_layout(
+        height=700,
+        template='plotly_white',
+        font=dict(family="Arial", size=11),
+        margin=dict(t=80, b=100, l=60, r=60)
+    )
+
+    fig.update_xaxes(tickangle=-45, nticks=8, row=1, col=1)
+    fig.update_xaxes(tickangle=-45, nticks=8, row=1, col=2)
+    fig.update_xaxes(tickangle=-45, nticks=8, row=2, col=1)
+
+    fig.update_yaxes(title="<b>Desvio (%)</b>", row=1, col=1, title_font=dict(size=11))
+    fig.update_yaxes(title="<b>Desvio (%)</b>", row=1, col=2, title_font=dict(size=11))
+    fig.update_yaxes(title="<b>Desvio (%)</b>", row=2, col=1, title_font=dict(size=11))
+    fig.update_yaxes(title="<b>Desvio Médio (%)</b>", row=2, col=2, title_font=dict(size=11))
 
     return fig
 
@@ -988,6 +1259,10 @@ tipo_grafico = st.selectbox(
         "Comparação Real vs Projetado - MIX",
         "Comparação Real vs Projetado - Açúcar",
         "Comparação Real vs Projetado - Etanol",
+        "Comparação com Baseline - Moagem",
+        "Comparação com Baseline - ATR",
+        "Comparação com Baseline - MIX",
+        "Desvios da Baseline",
         "Etanol Detalhado",
         "Análise de Desvios",
         "Preços Real vs Simulado",

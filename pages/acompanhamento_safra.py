@@ -789,21 +789,48 @@ def gerar_projecao_quinzenal(moagem_total, atr_medio, mix_medio, n_quinzenas=24,
 
             # Calcula fatores futuros - mesma lógica para ATR e MIX
             # IMPORTANTE: Usa a fórmula de ponderação: fator = (total_necessario - acumulado_real) / somarproduto_futuro
+            # Mas garante que o fator não fique muito distante do fator global (mantém a forma do perfil)
             if somarproduto_atr_futuro_base > 0 and atr_total_restante >= 0:
-                fator_atr_futuro = atr_total_restante / somarproduto_atr_futuro_base
+                fator_atr_futuro_calc = atr_total_restante / somarproduto_atr_futuro_base
+                # Limita a variação do fator para não sair muito do perfil (máximo 30% de variação)
+                variacao_max = 0.30
+                if abs(fator_atr_futuro_calc - fator_atr_global) / fator_atr_global > variacao_max:
+                    # Se a variação for muito grande, ajusta para manter próximo ao perfil
+                    if fator_atr_futuro_calc > fator_atr_global:
+                        fator_atr_futuro = fator_atr_global * (1 + variacao_max)
+                    else:
+                        fator_atr_futuro = fator_atr_global * (1 - variacao_max)
+                else:
+                    fator_atr_futuro = fator_atr_futuro_calc
             else:
                 fator_atr_futuro = fator_atr_global  # Fallback para o fator global
 
             if somarproduto_mix_futuro_base > 0 and mix_total_restante >= 0:
-                fator_mix_futuro = mix_total_restante / somarproduto_mix_futuro_base
+                fator_mix_futuro_calc = mix_total_restante / somarproduto_mix_futuro_base
+                # Limita a variação do fator para não sair muito do perfil (máximo 30% de variação)
+                variacao_max = 0.30
+                if abs(fator_mix_futuro_calc - fator_mix_global) / fator_mix_global > variacao_max:
+                    # Se a variação for muito grande, ajusta para manter próximo ao perfil
+                    if fator_mix_futuro_calc > fator_mix_global:
+                        fator_mix_futuro = fator_mix_global * (1 + variacao_max)
+                    else:
+                        fator_mix_futuro = fator_mix_global * (1 - variacao_max)
+                else:
+                    fator_mix_futuro = fator_mix_futuro_calc
             else:
                 fator_mix_futuro = fator_mix_global  # Fallback para o fator global
 
-            # Validação adicional: garante que os fatores sejam válidos
+            # Validação adicional: garante que os fatores sejam válidos e positivos
             if fator_mix_futuro <= 0 or not np.isfinite(fator_mix_futuro):
                 fator_mix_futuro = fator_mix_global
             if fator_atr_futuro <= 0 or not np.isfinite(fator_atr_futuro):
                 fator_atr_futuro = fator_atr_global
+
+            # Garante que os fatores não sejam muito diferentes do global (proteção adicional)
+            if fator_atr_futuro < fator_atr_global * 0.5 or fator_atr_futuro > fator_atr_global * 1.5:
+                fator_atr_futuro = fator_atr_global
+            if fator_mix_futuro < fator_mix_global * 0.5 or fator_mix_futuro > fator_mix_global * 1.5:
+                fator_mix_futuro = fator_mix_global
 
     # Gera projeção baseline EXATA para comparação
     df_baseline = gerar_projecao_baseline_exata(moagem_total, atr_medio, mix_medio, n_quinzenas, data_inicio)
@@ -858,11 +885,28 @@ def gerar_projecao_quinzenal(moagem_total, atr_medio, mix_medio, n_quinzenas=24,
                 atr_q = perfil_atr_ajustado[i] * fator_atr_futuro
                 mix_q = perfil_mix_ajustado[i] * fator_mix_futuro
 
-                # Validação: garante que MIX não seja zero ou negativo
+                # Validação: garante que MIX e ATR não sejam zero ou negativo
+                # E garante que não saiam muito do perfil (máximo 50% de variação do baseline)
+                atr_baseline = perfil_atr_ajustado[i] * fator_atr_global
+                mix_baseline = perfil_mix_ajustado[i] * fator_mix_global
+
                 if mix_q <= 0 or not np.isfinite(mix_q):
-                    mix_q = perfil_mix_ajustado[i] * fator_mix_global
+                    mix_q = mix_baseline
+                elif abs(mix_q - mix_baseline) / mix_baseline > 0.5:  # Se variar mais de 50% do baseline
+                    # Ajusta para ficar dentro do limite
+                    if mix_q > mix_baseline:
+                        mix_q = mix_baseline * 1.5
+                    else:
+                        mix_q = mix_baseline * 0.5
+
                 if atr_q <= 0 or not np.isfinite(atr_q):
-                    atr_q = perfil_atr_ajustado[i] * fator_atr_global
+                    atr_q = atr_baseline
+                elif abs(atr_q - atr_baseline) / atr_baseline > 0.5:  # Se variar mais de 50% do baseline
+                    # Ajusta para ficar dentro do limite
+                    if atr_q > atr_baseline:
+                        atr_q = atr_baseline * 1.5
+                    else:
+                        atr_q = atr_baseline * 0.5
             else:
                 # Quinzenas passadas sem dados reais (não deveria acontecer, mas por segurança)
                 moagem_q = moagem_distribuida[i]
@@ -1712,4 +1756,3 @@ st.info(
     💡 *A projeção é ajustada automaticamente baseada nos dados reais inseridos. Choques só podem ser aplicados em quinzenas futuras (sem dados reais).*
     """
 )
-
