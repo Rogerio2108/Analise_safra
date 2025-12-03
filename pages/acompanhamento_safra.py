@@ -32,18 +32,38 @@ except ImportError:
     REQUESTS_AVAILABLE = False
     # Não mostra warning aqui para evitar erro durante o import
     # O warning será mostrado apenas quando o usuário tentar usar a funcionalidade
-from Dados_base import (
-    DATA_FILES,
-    DESCONTO_VHP_FOB,
-    TAXA_POL,
-    ICMS_ETANOL,
-    PIS_COFINS_ETANOL,
-    FRETE_R_T,
-    TERMINAL_USD_T,
-    PERFIL_ATR,
-    PERFIL_MIX,
-    PERFIL_MOAGEM_PCT
-)
+try:
+    from Dados_base import (
+        DATA_FILES,
+        DESCONTO_VHP_FOB,
+        TAXA_POL,
+        ICMS_ETANOL,
+        PIS_COFINS_ETANOL,
+        FRETE_R_T,
+        TERMINAL_USD_T,
+        PERFIL_ATR,
+        PERFIL_MIX,
+        PERFIL_MOAGEM_PCT
+    )
+except ImportError:
+    # Tenta importar do diretório pai (para Streamlit Cloud)
+    import sys
+    from pathlib import Path
+    parent_dir = Path(__file__).parent.parent
+    if str(parent_dir) not in sys.path:
+        sys.path.insert(0, str(parent_dir))
+    from Dados_base import (
+        DATA_FILES,
+        DESCONTO_VHP_FOB,
+        TAXA_POL,
+        ICMS_ETANOL,
+        PIS_COFINS_ETANOL,
+        FRETE_R_T,
+        TERMINAL_USD_T,
+        PERFIL_ATR,
+        PERFIL_MIX,
+        PERFIL_MOAGEM_PCT
+    )
 
 
 # ============================================================================
