@@ -762,6 +762,8 @@ def gerar_projecao_quinzenal(moagem_total, atr_medio, mix_medio, n_quinzenas=24,
             else:
                 atr_total_restante = (atr_medio * moagem_total) - atr_real_acum_ponderado
 
+            # Calcula mix_total_restante usando a mesma lógica do ATR
+            # Se não há dados reais de MIX, calcula baseado nas projeções das quinzenas com dados reais
             if mix_real_acum_ponderado == 0:
                 # Não há dados reais de MIX, então calcula baseado nas projeções das quinzenas com dados reais
                 mix_projetado_acum = 0
@@ -775,6 +777,7 @@ def gerar_projecao_quinzenal(moagem_total, atr_medio, mix_medio, n_quinzenas=24,
                         mix_projetado_acum += perfil_mix_ajustado[q - 1] * fator_mix_global * moagem_q_proj
                 mix_total_restante = (mix_medio * moagem_total) - mix_projetado_acum
             else:
+                # Há dados reais de MIX, usa o valor acumulado ponderado
                 mix_total_restante = (mix_medio * moagem_total) - mix_real_acum_ponderado
 
             # Calcula o somarproduto das quinzenas futuras com os perfis originais
@@ -784,10 +787,23 @@ def gerar_projecao_quinzenal(moagem_total, atr_medio, mix_medio, n_quinzenas=24,
             somarproduto_mix_futuro_base = sum(moagem_distribuida[i] * perfil_mix_ajustado[i]
                                                 for i in range(primeira_quinzena_futura - 1, n_quinzenas))
 
-            if somarproduto_atr_futuro_base > 0:
+            # Calcula fatores futuros - mesma lógica para ATR e MIX
+            # IMPORTANTE: Usa a fórmula de ponderação: fator = (total_necessario - acumulado_real) / somarproduto_futuro
+            if somarproduto_atr_futuro_base > 0 and atr_total_restante >= 0:
                 fator_atr_futuro = atr_total_restante / somarproduto_atr_futuro_base
-            if somarproduto_mix_futuro_base > 0:
+            else:
+                fator_atr_futuro = fator_atr_global  # Fallback para o fator global
+
+            if somarproduto_mix_futuro_base > 0 and mix_total_restante >= 0:
                 fator_mix_futuro = mix_total_restante / somarproduto_mix_futuro_base
+            else:
+                fator_mix_futuro = fator_mix_global  # Fallback para o fator global
+
+            # Validação adicional: garante que os fatores sejam válidos
+            if fator_mix_futuro <= 0 or not np.isfinite(fator_mix_futuro):
+                fator_mix_futuro = fator_mix_global
+            if fator_atr_futuro <= 0 or not np.isfinite(fator_atr_futuro):
+                fator_atr_futuro = fator_atr_global
 
     # Gera projeção baseline EXATA para comparação
     df_baseline = gerar_projecao_baseline_exata(moagem_total, atr_medio, mix_medio, n_quinzenas, data_inicio)
@@ -825,12 +841,14 @@ def gerar_projecao_quinzenal(moagem_total, atr_medio, mix_medio, n_quinzenas=24,
                 moagem_q = moagem_acum_atual - moagem_acum_anterior
 
             # ATR e Mix são médios, usa o valor real se disponível, senão usa o perfil ajustado
+            # IMPORTANTE: Se não há valor real, usa o perfil com o fator global (não o futuro)
             atr_q = dados_reais[quinzena].get('atr_real')
             if atr_q is None:
                 atr_q = perfil_atr_ajustado[i] * fator_atr_global
 
             mix_q = dados_reais[quinzena].get('mix_real')
             if mix_q is None:
+                # Se não há mix real, usa o perfil com o fator global
                 mix_q = perfil_mix_ajustado[i] * fator_mix_global
         else:
             # Usa projeção ajustada para quinzenas futuras
@@ -839,6 +857,12 @@ def gerar_projecao_quinzenal(moagem_total, atr_medio, mix_medio, n_quinzenas=24,
                 moagem_q = moagem_distribuida[i]
                 atr_q = perfil_atr_ajustado[i] * fator_atr_futuro
                 mix_q = perfil_mix_ajustado[i] * fator_mix_futuro
+
+                # Validação: garante que MIX não seja zero ou negativo
+                if mix_q <= 0 or not np.isfinite(mix_q):
+                    mix_q = perfil_mix_ajustado[i] * fator_mix_global
+                if atr_q <= 0 or not np.isfinite(atr_q):
+                    atr_q = perfil_atr_ajustado[i] * fator_atr_global
             else:
                 # Quinzenas passadas sem dados reais (não deveria acontecer, mas por segurança)
                 moagem_q = moagem_distribuida[i]
