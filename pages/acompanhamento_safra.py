@@ -562,13 +562,83 @@ def ny11_para_brl(cents_lb: float, usdbrl: float) -> float:
 # FUNÇÕES DE SIMULAÇÃO E AJUSTE
 # ============================================================================
 
+def gerar_projecao_baseline_exata(moagem_total, atr_medio, mix_medio, n_quinzenas=24, data_inicio=None):
+    """
+    Gera projeção baseline EXATA baseada no perfil histórico.
+    Esta é a projeção "ideal" que segue exatamente o perfil sem ajustes.
+    """
+    if data_inicio is None:
+        data_inicio = date(date.today().year, 4, 1)
+
+    datas = pd.date_range(start=data_inicio, periods=n_quinzenas, freq="15D")
+
+    # Usa perfil de representatividade de moagem EXATO
+    n_perfil_moagem = len(PERFIL_MOAGEM_PCT)
+    pct_moagem = [PERFIL_MOAGEM_PCT[i % n_perfil_moagem] / 100.0 for i in range(n_quinzenas)]
+
+    # Normaliza para garantir que soma = 1.0
+    soma_pct = sum(pct_moagem)
+    if soma_pct > 0:
+        pct_moagem = [p / soma_pct for p in pct_moagem]
+
+    # Moagem distribuída EXATAMENTE pelo perfil
+    moagem_baseline = [moagem_total * pct_moagem[i] for i in range(n_quinzenas)]
+
+    # Perfis de ATR e MIX
+    n_perfil = len(PERFIL_ATR)
+    perfil_atr = [PERFIL_ATR[i % n_perfil] for i in range(n_quinzenas)]
+    perfil_mix = [PERFIL_MIX[i % n_perfil] for i in range(n_quinzenas)]
+
+    # Calcula SOMARPRODUTO para ATR e Mix
+    somarproduto_atr = sum(moagem_baseline[i] * perfil_atr[i] for i in range(n_quinzenas))
+    somarproduto_mix = sum(moagem_baseline[i] * perfil_mix[i] for i in range(n_quinzenas))
+
+    # Calcula fatores de correção para manter as médias
+    fator_atr = (atr_medio * moagem_total) / somarproduto_atr if somarproduto_atr > 0 else 1.0
+    fator_mix = (mix_medio * moagem_total) / somarproduto_mix if somarproduto_mix > 0 else 1.0
+
+    # Gera DataFrame baseline
+    linhas = []
+    for i in range(n_quinzenas):
+        quinzena = i + 1
+        moagem_q = moagem_baseline[i]
+        atr_q = perfil_atr[i] * fator_atr
+        mix_q = perfil_mix[i] * fator_mix
+
+        acucar_q, etanol_q = calcular_producao_quinzenal(moagem_q, atr_q, mix_q)
+
+        etanol_anidro_cana, etanol_hidratado_cana = calcular_etanol_detalhado(
+            etanol_q, quinzena, n_quinzenas
+        )
+        etanol_anidro_milho, etanol_hidratado_milho = calcular_etanol_milho(
+            etanol_q, quinzena, n_quinzenas
+        )
+
+        etanol_total_quinzena = etanol_anidro_cana + etanol_hidratado_cana + etanol_anidro_milho + etanol_hidratado_milho
+
+        linhas.append({
+            "Quinzena": quinzena,
+            "Mês": datas[i].month,
+            "Data": datas[i].date(),
+            "Moagem Baseline": moagem_q,
+            "ATR Baseline": atr_q,
+            "MIX Baseline": mix_q,
+            "Açúcar Baseline (t)": acucar_q,
+            "Etanol Baseline (m³)": etanol_q,
+        })
+
+    df_baseline = pd.DataFrame(linhas)
+    return df_baseline
+
+
 def gerar_projecao_quinzenal(moagem_total, atr_medio, mix_medio, n_quinzenas=24,
                               data_inicio=None, dados_reais=None, choques_safra=None, seed=42):
     """
     Gera projeção quinzenal ajustada com dados reais.
 
     Usa perfil de representatividade de moagem e perfis históricos de ATR e MIX.
-    Mantém projeções originais para comparação com dados reais.
+    Mantém a FORMA do perfil, mas ajusta para os totais estimados.
+    Mantém projeções baseline para comparação.
     """
     if data_inicio is None:
         data_inicio = date(date.today().year, 4, 1)
@@ -588,18 +658,18 @@ def gerar_projecao_quinzenal(moagem_total, atr_medio, mix_medio, n_quinzenas=24,
     datas = pd.date_range(start=data_inicio, periods=n_quinzenas, freq="15D")
 
     # Calcula moagem distribuída baseada no perfil de representatividade
-    moagem_distribuida = [moagem_total * pct_moagem[i] for i in range(n_quinzenas)]
-    soma_moagem = sum(moagem_distribuida)
+    # Esta é a distribuição INICIAL seguindo exatamente o perfil
+    moagem_distribuida_inicial = [moagem_total * pct_moagem[i] for i in range(n_quinzenas)]
+    moagem_distribuida = moagem_distribuida_inicial.copy()
 
-    # Usa perfis históricos de ATR e MIX
+    # Usa perfis históricos de ATR e MIX (mantém a FORMA do perfil)
     n_perfil = len(PERFIL_ATR)
     perfil_atr_ajustado = [PERFIL_ATR[i % n_perfil] for i in range(n_quinzenas)]
     perfil_mix_ajustado = [PERFIL_MIX[i % n_perfil] for i in range(n_quinzenas)]
 
-    # Calcula SOMARPRODUTO para ATR e Mix usando a distribuição original
-    moagem_distribuida_original = [moagem_total * pct_moagem[i] for i in range(n_quinzenas)]
-    somarproduto_atr_original = sum(moagem_distribuida_original[i] * perfil_atr_ajustado[i] for i in range(n_quinzenas))
-    somarproduto_mix_original = sum(moagem_distribuida_original[i] * perfil_mix_ajustado[i] for i in range(n_quinzenas))
+    # Calcula SOMARPRODUTO para ATR e Mix usando a distribuição inicial
+    somarproduto_atr_original = sum(moagem_distribuida_inicial[i] * perfil_atr_ajustado[i] for i in range(n_quinzenas))
+    somarproduto_mix_original = sum(moagem_distribuida_inicial[i] * perfil_mix_ajustado[i] for i in range(n_quinzenas))
 
     # Calcula fatores de correção baseados no total estimado (garantem a média final)
     fator_atr_global = (atr_medio * moagem_total) / somarproduto_atr_original if somarproduto_atr_original > 0 else 1.0
@@ -626,12 +696,15 @@ def gerar_projecao_quinzenal(moagem_total, atr_medio, mix_medio, n_quinzenas=24,
         moagem_restante = moagem_total - moagem_real_acum_total
 
         # Calcula os pesos das quinzenas futuras (após a última com dados reais)
+        # MANTÉM A FORMA DO PERFIL - usa os percentuais originais do perfil
         pesos_futuros = [pct_moagem[i] for i in range(primeira_quinzena_futura - 1, n_quinzenas)]
         soma_pesos_futuros = sum(pesos_futuros) if pesos_futuros else 1.0
 
         if soma_pesos_futuros > 0 and moagem_restante >= 0:
-            # Redistribui proporcionalmente ao perfil
+            # Redistribui proporcionalmente ao perfil ORIGINAL
+            # Isso mantém a FORMA da curva do perfil, apenas ajusta a escala
             for i in range(primeira_quinzena_futura - 1, n_quinzenas):
+                # Mantém a proporção exata do perfil
                 moagem_distribuida[i] = moagem_restante * (pct_moagem[i] / soma_pesos_futuros)
         elif moagem_restante < 0:
             # Se a moagem real excedeu o total, zera as futuras
@@ -716,12 +789,15 @@ def gerar_projecao_quinzenal(moagem_total, atr_medio, mix_medio, n_quinzenas=24,
             if somarproduto_mix_futuro_base > 0:
                 fator_mix_futuro = mix_total_restante / somarproduto_mix_futuro_base
 
+    # Gera projeção baseline EXATA para comparação
+    df_baseline = gerar_projecao_baseline_exata(moagem_total, atr_medio, mix_medio, n_quinzenas, data_inicio)
+
     # Calcula projeções originais (antes de ajustes com dados reais) para comparação
     projecoes_originais = {}
     for i in range(n_quinzenas):
         quinzena = i + 1
         projecoes_originais[quinzena] = {
-            'moagem': moagem_distribuida_original[i],
+            'moagem': moagem_distribuida_inicial[i],
             'atr': perfil_atr_ajustado[i] * fator_atr_global,
             'mix': perfil_mix_ajustado[i] * fator_mix_global
         }
@@ -866,6 +942,11 @@ def gerar_projecao_quinzenal(moagem_total, atr_medio, mix_medio, n_quinzenas=24,
 
     # Calcula acumulado progressivo
     df["Etanol Total Acumulado (m³)"] = df["Etanol Total Quinzena (m³)"].cumsum()
+
+    # Adiciona dados baseline para comparação
+    df = df.merge(df_baseline[["Quinzena", "Moagem Baseline", "ATR Baseline", "MIX Baseline",
+                                "Açúcar Baseline (t)", "Etanol Baseline (m³)"]],
+                  on="Quinzena", how="left")
 
     return df
 
@@ -1535,7 +1616,12 @@ colunas_formatacao = {
     "Etanol Hidratado Preço (R$/m³)": (0, lambda x: fmt_br(x, 0) if x is not None and not pd.isna(x) else ""),
     "Moagem Proj. Original": (0, fmt_br),
     "ATR Proj. Original": (2, fmt_br),
-    "MIX Proj. Original": (2, fmt_br)
+    "MIX Proj. Original": (2, fmt_br),
+    "Moagem Baseline": (0, fmt_br),
+    "ATR Baseline": (2, fmt_br),
+    "MIX Baseline": (2, fmt_br),
+    "Açúcar Baseline (t)": (0, fmt_br),
+    "Etanol Baseline (m³)": (0, fmt_br)
 }
 
 for coluna, (casas, func) in colunas_formatacao.items():
@@ -1555,8 +1641,10 @@ def highlight_real_data(row):
 colunas_exibir = [
     "Quinzena", "Data",
     "Moagem", "ATR", "MIX",
+    "Moagem Baseline", "ATR Baseline", "MIX Baseline",
     "Moagem Proj. Original", "ATR Proj. Original", "MIX Proj. Original",
-    "Açúcar (t)", "Etanol Total (m³)",
+    "Açúcar (t)", "Açúcar Baseline (t)",
+    "Etanol Total (m³)", "Etanol Baseline (m³)",
     "Etanol Anidro Cana (m³)", "Etanol Hidratado Cana (m³)",
     "Etanol Anidro Milho (m³)", "Etanol Hidratado Milho (m³)",
     "Etanol Total Quinzena (m³)", "Etanol Total Acumulado (m³)",
@@ -1566,6 +1654,9 @@ colunas_exibir = [
 # Adiciona colunas de preços de etanol se existirem
 if "Etanol Anidro Preço (R$/m³)" in df_mostrar_display.columns:
     colunas_exibir.extend(["Etanol Anidro Preço (R$/m³)", "Etanol Hidratado Preço (R$/m³)"])
+
+# Filtra apenas colunas que existem no DataFrame
+colunas_exibir = [col for col in colunas_exibir if col in df_mostrar_display.columns]
 
 st.dataframe(
     df_mostrar_display[colunas_exibir],
