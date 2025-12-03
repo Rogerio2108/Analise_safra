@@ -44,17 +44,25 @@ TERMINAL_USD_T = 12.5  # Terminal em USD/t (C30) - altere aqui se necessário
 # ============================================================================
 
 # ============================================================================
-# PERFIS HISTÓRICOS ATR E MIX
+# PERFIS HISTÓRICOS - REPRESENTATIVIDADE E DISTRIBUIÇÃO
 # ============================================================================
-# Perfis históricos de distribuição quinzenal (22 quinzenas)
+# Perfil de representatividade de moagem (percentual de cada quinzena na safra total)
+# Valores em percentual (ex: 2.67 = 2.67%)
+PERFIL_MOAGEM_PCT = [
+    2.67, 4.83, 6.86, 6.99, 6.98, 7.52, 7.73, 8.42, 7.23, 7.50, 7.08, 6.11,
+    5.45, 5.02, 3.69, 2.50, 1.37, 0.34, 0.07, 0.06, 0.06, 0.09, 0.40, 1.03
+]
+
+# Perfis históricos de distribuição quinzenal ATR e MIX (24 quinzenas)
 # Valores são fatores multiplicadores que variam ao longo da safra
 PERFIL_ATR = [
     0.81, 0.87, 0.94, 0.98, 1.00, 1.03, 1.06, 1.10, 1.13, 1.15, 1.18, 1.19,
-    1.15, 1.12, 1.04, 1.01, 0.97, 1.03, 0.90, 1.03, 0.88, 0.85
+    1.15, 1.12, 1.04, 1.01, 0.97, 1.03, 0.90, 1.03, 0.88, 0.85, 0.76, 0.81
 ]
 
 PERFIL_MIX = [
     0.96, 1.11, 1.19, 1.19, 1.22, 1.24, 1.25, 1.26, 1.24, 1.24, 1.23, 1.19,
-    1.16, 1.13, 1.11, 1.02, 0.87, 0.73, 0.72, 0.65, 0.57, 0.38
+    1.16, 1.13, 1.11, 1.02, 0.87, 0.73, 0.72, 0.65, 0.57, 0.38, 0.56, 0.78
 ]
 # ============================================================================
+
