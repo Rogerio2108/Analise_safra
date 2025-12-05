@@ -697,7 +697,8 @@ def gerar_projecao_baseline_exata(moagem_total, atr_medio, mix_medio, n_quinzena
 
 
 def gerar_projecao_quinzenal(moagem_total, atr_medio, mix_medio, n_quinzenas=24,
-                              data_inicio=None, dados_reais=None, choques_safra=None, seed=42):
+                              data_inicio=None, dados_reais=None, choques_safra=None, seed=42,
+                              usar_volatilidade_etanol=False):
     """
     Gera projeção quinzenal ajustada com dados reais.
 
