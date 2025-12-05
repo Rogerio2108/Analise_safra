@@ -499,6 +499,71 @@ def calcular_etanol_milho(etanol_total, quinzena, n_quinzenas_total):
     return etanol_anidro_milho, etanol_hidratado_milho
 
 
+def simular_producao_etanol_com_volatilidade(etanol_base, tipo, seed=None):
+    """
+    Simula produção de etanol adicionando ruído baseado em volatilidade e desvio padrão.
+
+    Args:
+        etanol_base: Valor base da produção (m³)
+        tipo: Tipo de etanol ('anidro_cana', 'hidratado_cana', 'anidro_milho', 'hidratado_milho')
+        seed: Semente para reprodutibilidade (opcional)
+
+    Returns:
+        float: Valor simulado com ruído
+    """
+    try:
+        from Dados_base import (
+            VOLATILIDADE_ETANOL_ANIDRO_CANA,
+            VOLATILIDADE_ETANOL_HIDRATADO_CANA,
+            VOLATILIDADE_ETANOL_ANIDRO_MILHO,
+            VOLATILIDADE_ETANOL_HIDRATADO_MILHO,
+            DESVIO_PADRAO_ETANOL_ANIDRO_CANA,
+            DESVIO_PADRAO_ETANOL_HIDRATADO_CANA,
+            DESVIO_PADRAO_ETANOL_ANIDRO_MILHO,
+            DESVIO_PADRAO_ETANOL_HIDRATADO_MILHO
+        )
+    except ImportError:
+        # Se não conseguir importar, retorna valor base sem simulação
+        return etanol_base
+
+    if etanol_base <= 0:
+        return 0.0
+
+    rng = np.random.default_rng(seed)
+
+    # Seleciona parâmetros baseado no tipo
+    if tipo == 'anidro_cana':
+        volatilidade = VOLATILIDADE_ETANOL_ANIDRO_CANA
+        desvio_padrao = DESVIO_PADRAO_ETANOL_ANIDRO_CANA
+    elif tipo == 'hidratado_cana':
+        volatilidade = VOLATILIDADE_ETANOL_HIDRATADO_CANA
+        desvio_padrao = DESVIO_PADRAO_ETANOL_HIDRATADO_CANA
+    elif tipo == 'anidro_milho':
+        volatilidade = VOLATILIDADE_ETANOL_ANIDRO_MILHO
+        desvio_padrao = DESVIO_PADRAO_ETANOL_ANIDRO_MILHO
+    elif tipo == 'hidratado_milho':
+        volatilidade = VOLATILIDADE_ETANOL_HIDRATADO_MILHO
+        desvio_padrao = DESVIO_PADRAO_ETANOL_HIDRATADO_MILHO
+    else:
+        # Tipo desconhecido, retorna valor base
+        return etanol_base
+
+    # Adiciona ruído usando distribuição normal
+    # Usa desvio padrão absoluto ou volatilidade relativa, o que for mais apropriado
+    # Para valores grandes, usa volatilidade relativa; para valores pequenos, usa desvio padrão
+    if etanol_base > desvio_padrao * 2:
+        # Usa volatilidade relativa (percentual)
+        ruido = rng.normal(0, volatilidade)
+        etanol_simulado = etanol_base * (1 + ruido)
+    else:
+        # Usa desvio padrão absoluto
+        ruido = rng.normal(0, desvio_padrao)
+        etanol_simulado = etanol_base + ruido
+
+    # Garante que não seja negativo
+    return max(0.0, etanol_simulado)
+
+
 # ============================================================================
 # FUNÇÕES DE CONVERSÃO DE PREÇOS
 # ============================================================================
@@ -938,12 +1003,34 @@ def gerar_projecao_quinzenal(moagem_total, atr_medio, mix_medio, n_quinzenas=24,
         acucar_q, etanol_q = calcular_producao_quinzenal(moagem_q, atr_q, mix_q)
 
         # Calcula etanol detalhado
-        etanol_anidro_cana, etanol_hidratado_cana = calcular_etanol_detalhado(
+        etanol_anidro_cana_base, etanol_hidratado_cana_base = calcular_etanol_detalhado(
             etanol_q, quinzena, n_quinzenas
         )
-        etanol_anidro_milho, etanol_hidratado_milho = calcular_etanol_milho(
+        etanol_anidro_milho_base, etanol_hidratado_milho_base = calcular_etanol_milho(
             etanol_q, quinzena, n_quinzenas
         )
+
+        # Aplica simulação com volatilidade se não houver dados reais e se usar_volatilidade_etanol estiver ativo
+        # Usa seed baseado na quinzena para reprodutibilidade
+        if not tem_dados_reais and usar_volatilidade_etanol:
+            etanol_anidro_cana = simular_producao_etanol_com_volatilidade(
+                etanol_anidro_cana_base, 'anidro_cana', seed=seed + quinzena
+            )
+            etanol_hidratado_cana = simular_producao_etanol_com_volatilidade(
+                etanol_hidratado_cana_base, 'hidratado_cana', seed=seed + quinzena + 1000
+            )
+            etanol_anidro_milho = simular_producao_etanol_com_volatilidade(
+                etanol_anidro_milho_base, 'anidro_milho', seed=seed + quinzena + 2000
+            )
+            etanol_hidratado_milho = simular_producao_etanol_com_volatilidade(
+                etanol_hidratado_milho_base, 'hidratado_milho', seed=seed + quinzena + 3000
+            )
+        else:
+            # Usa valores base (serão substituídos por dados reais se disponíveis)
+            etanol_anidro_cana = etanol_anidro_cana_base
+            etanol_hidratado_cana = etanol_hidratado_cana_base
+            etanol_anidro_milho = etanol_anidro_milho_base
+            etanol_hidratado_milho = etanol_hidratado_milho_base
 
         # Verifica se há dados reais de etanol (são ACUMULADOS, então calcula diferença)
         if tem_dados_reais:
@@ -1031,6 +1118,7 @@ def simular_precos(ny11_inicial, usd_inicial, etanol_inicial, n_quinzenas,
     - Volatilidade e correlação entre commodities
     - Impacto da oferta (produção informada) nos preços
     - Choques externos (opcional)
+    - Volatilidades específicas para etanol anidro e hidratado
     """
     rng = np.random.default_rng(seed)
 
@@ -1042,6 +1130,19 @@ def simular_precos(ny11_inicial, usd_inicial, etanol_inicial, n_quinzenas,
 
     # Retornos correlacionados
     rets = rng.multivariate_normal(mean=[0.0, 0.0, 0.0], cov=cov_step, size=n_quinzenas)
+
+    # Volatilidades específicas para etanol anidro e hidratado
+    try:
+        from Dados_base import (
+            VOLATILIDADE_ETANOL_ANIDRO,
+            VOLATILIDADE_ETANOL_HIDRATADO
+        )
+        vol_etanol_anidro = VOLATILIDADE_ETANOL_ANIDRO
+        vol_etanol_hidratado = VOLATILIDADE_ETANOL_HIDRATADO
+    except ImportError:
+        # Usa volatilidade padrão se não conseguir importar
+        vol_etanol_anidro = DEFAULT_PRICE_VOLS["ethanol"]
+        vol_etanol_hidratado = DEFAULT_PRICE_VOLS["ethanol"]
 
     # Calcula produção total informada
     producao_total = 0
@@ -1082,13 +1183,25 @@ def simular_precos(ny11_inicial, usd_inicial, etanol_inicial, n_quinzenas,
     # Simula trajetória
     ny11 = [ny11_inicial]
     etanol = [etanol_inicial]
+    # Preços iniciais de etanol anidro e hidratado (assume que etanol_inicial é uma média)
+    # Normalmente, anidro é um pouco mais caro que hidratado
+    etanol_anidro = [etanol_inicial * 1.05]  # ~5% mais caro
+    etanol_hidratado = [etanol_inicial * 0.95]  # ~5% mais barato
     usd = [usd_inicial]
 
     choques_aplicados = []
 
+    # Gera retornos separados para etanol anidro e hidratado com suas volatilidades específicas
+    rng_etanol = np.random.default_rng(seed + 10000)
+    dt = 1.0 / 24.0
+    rets_etanol_anidro = rng_etanol.normal(0, vol_etanol_anidro * np.sqrt(dt), n_quinzenas)
+    rets_etanol_hidratado = rng_etanol.normal(0, vol_etanol_hidratado * np.sqrt(dt), n_quinzenas)
+
     for i in range(n_quinzenas):
         quinzena = i + 1
         r_sugar, r_eth, r_usd = rets[i]
+        r_etanol_anidro = rets_etanol_anidro[i]
+        r_etanol_hidratado = rets_etanol_hidratado[i]
 
         # Verifica se há dados reais de preços para esta quinzena
         tem_precos_reais = dados_reais and quinzena in dados_reais
@@ -1108,14 +1221,19 @@ def simular_precos(ny11_inicial, usd_inicial, etanol_inicial, n_quinzenas,
             else:
                 usd.append(usd[-1] * (1 + r_usd))
 
-            # Para etanol, usa média ponderada se houver preços reais
-            if dados_reais[quinzena].get('etanol_anidro_preco_real') and dados_reais[quinzena].get('etanol_hidratado_preco_real'):
-                # Média ponderada (aproximação: 50% anidro, 50% hidratado)
-                etanol_medio = (dados_reais[quinzena]['etanol_anidro_preco_real'] +
-                               dados_reais[quinzena]['etanol_hidratado_preco_real']) / 2
-                etanol.append(etanol_medio)
+            # Para etanol, usa preços reais se disponíveis
+            if dados_reais[quinzena].get('etanol_anidro_preco_real'):
+                etanol_anidro.append(dados_reais[quinzena]['etanol_anidro_preco_real'])
             else:
-                etanol.append(etanol[-1] * (1 + r_eth))
+                etanol_anidro.append(etanol_anidro[-1] * (1 + r_etanol_anidro))
+
+            if dados_reais[quinzena].get('etanol_hidratado_preco_real'):
+                etanol_hidratado.append(dados_reais[quinzena]['etanol_hidratado_preco_real'])
+            else:
+                etanol_hidratado.append(etanol_hidratado[-1] * (1 + r_etanol_hidratado))
+
+            # Média ponderada para etanol geral (aproximação: 50% anidro, 50% hidratado)
+            etanol.append((etanol_anidro[-1] + etanol_hidratado[-1]) / 2)
         else:
             # Verifica choques de preços apenas se não houver dados reais
             if choques_precos and quinzena in choques_precos:
@@ -1135,30 +1253,43 @@ def simular_precos(ny11_inicial, usd_inicial, etanol_inicial, n_quinzenas,
             drift = (fator_oferta - 1.0) * 0.12
 
             ny11.append(ny11[-1] * (1 + r_sugar_ajustado + drift))
-            etanol.append(etanol[-1] * (1 + r_eth))
+
+            # Simula preços de etanol anidro e hidratado separadamente
+            etanol_anidro.append(etanol_anidro[-1] * (1 + r_etanol_anidro))
+            etanol_hidratado.append(etanol_hidratado[-1] * (1 + r_etanol_hidratado))
+
+            # Média ponderada para etanol geral
+            etanol.append((etanol_anidro[-1] + etanol_hidratado[-1]) / 2)
             usd.append(usd[-1] * (1 + r_usd))
 
     df_precos = pd.DataFrame({
         "Quinzena": np.arange(1, n_quinzenas + 1),
         "NY11_cents": ny11[1:],
         "Etanol_R$m3": etanol[1:],
+        "Etanol_Anidro_R$m3": etanol_anidro[1:],
+        "Etanol_Hidratado_R$m3": etanol_hidratado[1:],
         "USD_BRL": usd[1:],
     })
 
-    # Adiciona colunas de preços reais de etanol se disponíveis
+    # Adiciona colunas de preços reais de etanol se disponíveis (substitui valores simulados)
     if dados_reais:
-        etanol_anidro_preco = []
-        etanol_hidratado_preco = []
         for quinzena in range(1, n_quinzenas + 1):
             if quinzena in dados_reais:
-                etanol_anidro_preco.append(dados_reais[quinzena].get('etanol_anidro_preco_real', None))
-                etanol_hidratado_preco.append(dados_reais[quinzena].get('etanol_hidratado_preco_real', None))
-            else:
-                etanol_anidro_preco.append(None)
-                etanol_hidratado_preco.append(None)
+                idx = quinzena - 1
+                if dados_reais[quinzena].get('etanol_anidro_preco_real'):
+                    df_precos.loc[idx, "Etanol_Anidro_R$m3"] = dados_reais[quinzena]['etanol_anidro_preco_real']
+                if dados_reais[quinzena].get('etanol_hidratado_preco_real'):
+                    df_precos.loc[idx, "Etanol_Hidratado_R$m3"] = dados_reais[quinzena]['etanol_hidratado_preco_real']
+                # Atualiza média se ambos estiverem disponíveis
+                if dados_reais[quinzena].get('etanol_anidro_preco_real') and dados_reais[quinzena].get('etanol_hidratado_preco_real'):
+                    df_precos.loc[idx, "Etanol_R$m3"] = (
+                        dados_reais[quinzena]['etanol_anidro_preco_real'] +
+                        dados_reais[quinzena]['etanol_hidratado_preco_real']
+                    ) / 2
 
-        df_precos["Etanol Anidro Preço (R$/m³)"] = etanol_anidro_preco
-        df_precos["Etanol Hidratado Preço (R$/m³)"] = etanol_hidratado_preco
+        # Adiciona colunas com nomes mais descritivos para compatibilidade
+        df_precos["Etanol Anidro Preço (R$/m³)"] = df_precos["Etanol_Anidro_R$m3"]
+        df_precos["Etanol Hidratado Preço (R$/m³)"] = df_precos["Etanol_Hidratado_R$m3"]
 
     return df_precos, direcao, fator_oferta, choques_aplicados
 
@@ -1601,7 +1732,9 @@ with st.sidebar.expander("⚡ Choques de Preços", expanded=False):
 df_projecao = gerar_projecao_quinzenal(
     moagem, atr, mix, int(n_quinz), data_start,
     st.session_state.dados_reais if st.session_state.dados_reais else None,
-    st.session_state.choques_safra if st.session_state.choques_safra else None
+    st.session_state.choques_safra if st.session_state.choques_safra else None,
+    seed=42,
+    usar_volatilidade_etanol=True  # Ativa simulação com volatilidade
 )
 
 # Simula preços
@@ -1756,3 +1889,4 @@ st.info(
     💡 *A projeção é ajustada automaticamente baseada nos dados reais inseridos. Choques só podem ser aplicados em quinzenas futuras (sem dados reais).*
     """
 )
+

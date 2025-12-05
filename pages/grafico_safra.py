@@ -251,27 +251,34 @@ def criar_grafico_comparacao_baseline(df, coluna_proj, coluna_baseline, titulo, 
 
     fig = go.Figure()
 
-    # Baseline (perfil ideal) - sempre mostra se existe
-    fig.add_trace(go.Scatter(
-        x=df['Data'],
-        y=df[coluna_baseline],
-        name='<b>Baseline (Perfil Ideal)</b>',
-        line=dict(color='#17becf', width=3, dash='dot'),
-        mode='lines+markers',
-        marker=dict(size=6, symbol='x'),
-        hovertemplate=f'<b>Baseline</b><br>Data: %{{x}}<br>{titulo}: %{{y:,.2f}} {unidade}<extra></extra>'
-    ))
+    # Baseline (perfil ideal) - sempre mostra TODAS as quinzenas, mesmo que não haja dados reais
+    # Filtra apenas valores válidos (não nulos e > 0)
+    df_baseline_valid = df[df[coluna_baseline].notna() & (df[coluna_baseline] > 0)]
 
-    # Dados projetados
-    fig.add_trace(go.Scatter(
-        x=df['Data'],
-        y=df[coluna_proj],
-        name='<b>Projetado</b>',
-        line=dict(color=CORES['Projetado'], width=3, dash='dash'),
-        mode='lines+markers',
-        marker=dict(size=6, symbol='circle'),
-        hovertemplate=f'<b>Projetado</b><br>Data: %{{x}}<br>{titulo}: %{{y:,.2f}} {unidade}<extra></extra>'
-    ))
+    if len(df_baseline_valid) > 0:
+        fig.add_trace(go.Scatter(
+            x=df_baseline_valid['Data'],
+            y=df_baseline_valid[coluna_baseline],
+            name='<b>Baseline (Perfil Ideal)</b>',
+            line=dict(color='#17becf', width=3, dash='dot'),
+            mode='lines+markers',
+            marker=dict(size=6, symbol='x'),
+            hovertemplate=f'<b>Baseline</b><br>Data: %{{x}}<br>{titulo}: %{{y:,.2f}} {unidade}<extra></extra>'
+        ))
+
+    # Dados projetados - mostra TODAS as quinzenas
+    df_proj_valid = df[df[coluna_proj].notna() & (df[coluna_proj] > 0)]
+
+    if len(df_proj_valid) > 0:
+        fig.add_trace(go.Scatter(
+            x=df_proj_valid['Data'],
+            y=df_proj_valid[coluna_proj],
+            name='<b>Projetado</b>',
+            line=dict(color=CORES['Projetado'], width=3, dash='dash'),
+            mode='lines+markers',
+            marker=dict(size=6, symbol='circle'),
+            hovertemplate=f'<b>Projetado</b><br>Data: %{{x}}<br>{titulo}: %{{y:,.2f}} {unidade}<extra></extra>'
+        ))
 
     # Dados reais (se disponíveis)
     if 'dados_reais' in st.session_state and st.session_state.dados_reais:
@@ -348,9 +355,9 @@ def criar_grafico_desvios_baseline(df):
     if not colunas_baseline:
         return None
 
-    # Verifica se há dados reais
-    if 'dados_reais' not in st.session_state or not st.session_state.dados_reais:
-        return None
+    # Verifica se há dados reais (mas permite gráfico mesmo com poucos dados)
+    # Se não houver dados reais, ainda pode mostrar o gráfico com baseline e projetado
+    tem_dados_reais = 'dados_reais' in st.session_state and st.session_state.dados_reais
 
     fig = make_subplots(
         rows=2, cols=2,
@@ -374,40 +381,41 @@ def criar_grafico_desvios_baseline(df):
     datas_atr = []
     datas_mix = []
 
-    # Calcula desvios baseados em dados REAIS vs baseline
-    for quinzena in sorted(st.session_state.dados_reais.keys()):
-        if quinzena <= len(df):
-            dados_q = st.session_state.dados_reais[quinzena]
-            data_q = df.iloc[quinzena - 1]['Data']
-            row = df.iloc[quinzena - 1]
+    # Calcula desvios baseados em dados REAIS vs baseline (se houver dados reais)
+    if tem_dados_reais:
+        for quinzena in sorted(st.session_state.dados_reais.keys()):
+            if quinzena <= len(df):
+                dados_q = st.session_state.dados_reais[quinzena]
+                data_q = df.iloc[quinzena - 1]['Data']
+                row = df.iloc[quinzena - 1]
 
-            # Desvio de Moagem (dados são acumulados, calcula quinzenal)
-            if dados_q.get('moagem_real') and 'Moagem Baseline' in df.columns and row['Moagem Baseline'] > 0:
-                moagem_acum = dados_q['moagem_real']
-                if quinzena == 1:
-                    moagem_q_real = moagem_acum
-                else:
-                    moagem_ant = st.session_state.dados_reais.get(quinzena - 1, {}).get('moagem_real', 0) or 0
-                    moagem_q_real = moagem_acum - moagem_ant
+                # Desvio de Moagem (dados são acumulados, calcula quinzenal)
+                if dados_q.get('moagem_real') and 'Moagem Baseline' in df.columns and row['Moagem Baseline'] > 0:
+                    moagem_acum = dados_q['moagem_real']
+                    if quinzena == 1:
+                        moagem_q_real = moagem_acum
+                    else:
+                        moagem_ant = st.session_state.dados_reais.get(quinzena - 1, {}).get('moagem_real', 0) or 0
+                        moagem_q_real = moagem_acum - moagem_ant
 
-                if moagem_q_real > 0:
-                    desvio = ((moagem_q_real - row['Moagem Baseline']) / row['Moagem Baseline']) * 100
-                    desvios_moagem.append(desvio)
-                    datas_moagem.append(data_q)
+                    if moagem_q_real > 0:
+                        desvio = ((moagem_q_real - row['Moagem Baseline']) / row['Moagem Baseline']) * 100
+                        desvios_moagem.append(desvio)
+                        datas_moagem.append(data_q)
 
-            # Desvio de ATR (dados são médios, não acumulados)
-            if dados_q.get('atr_real') and 'ATR Baseline' in df.columns and row['ATR Baseline'] > 0:
-                atr_real = dados_q['atr_real']
-                desvio = ((atr_real - row['ATR Baseline']) / row['ATR Baseline']) * 100
-                desvios_atr.append(desvio)
-                datas_atr.append(data_q)
+                # Desvio de ATR (dados são médios, não acumulados)
+                if dados_q.get('atr_real') and 'ATR Baseline' in df.columns and row['ATR Baseline'] > 0:
+                    atr_real = dados_q['atr_real']
+                    desvio = ((atr_real - row['ATR Baseline']) / row['ATR Baseline']) * 100
+                    desvios_atr.append(desvio)
+                    datas_atr.append(data_q)
 
-            # Desvio de MIX (dados são médios, não acumulados)
-            if dados_q.get('mix_real') and 'MIX Baseline' in df.columns and row['MIX Baseline'] > 0:
-                mix_real = dados_q['mix_real']
-                desvio = ((mix_real - row['MIX Baseline']) / row['MIX Baseline']) * 100
-                desvios_mix.append(desvio)
-                datas_mix.append(data_q)
+                # Desvio de MIX (dados são médios, não acumulados)
+                if dados_q.get('mix_real') and 'MIX Baseline' in df.columns and row['MIX Baseline'] > 0:
+                    mix_real = dados_q['mix_real']
+                    desvio = ((mix_real - row['MIX Baseline']) / row['MIX Baseline']) * 100
+                    desvios_mix.append(desvio)
+                    datas_mix.append(data_q)
 
     # Adiciona traços aos gráficos
     if desvios_moagem:
@@ -501,9 +509,8 @@ def criar_grafico_desvios_baseline(df):
                 continue
             fig.add_hline(y=0, line_dash="dash", line_color="gray", opacity=0.5, row=row, col=col)
 
-    # Se não há nenhum dado, retorna None
-    if not desvios_moagem and not desvios_atr and not desvios_mix:
-        return None
+    # Se não há nenhum dado real, ainda mostra o gráfico (vazio) para indicar que precisa de dados
+    # Mas não retorna None para que o gráfico apareça
 
     fig.update_layout(
         height=700,
@@ -1222,29 +1229,140 @@ def criar_grafico_analise_estatistica(df):
 # ============================================================================
 
 # Sidebar com parâmetros (mesmos do acompanhamento_safra.py)
+# Usa session_state para persistir valores
 st.sidebar.header("📊 Parâmetros da Safra")
 
-moagem = st.sidebar.number_input("Moagem total estimada (ton)", value=600_000_000, step=10_000_000)
-atr = st.sidebar.number_input("ATR médio estimado (kg/t)", value=135.0, step=1.0, format="%.1f")
-mix = st.sidebar.number_input("Mix açúcar estimado (%)", value=48.0, step=1.0, format="%.1f")
+# Inicializa valores no session_state se não existirem
+if 'grafico_moagem' not in st.session_state:
+    st.session_state.grafico_moagem = 600_000_000
+if 'grafico_atr' not in st.session_state:
+    st.session_state.grafico_atr = 135.0
+if 'grafico_mix' not in st.session_state:
+    st.session_state.grafico_mix = 48.0
+if 'grafico_n_quinz' not in st.session_state:
+    st.session_state.grafico_n_quinz = 24
+if 'grafico_data_start' not in st.session_state:
+    st.session_state.grafico_data_start = date(date.today().year, 4, 1)
+if 'grafico_ny11_inicial' not in st.session_state:
+    st.session_state.grafico_ny11_inicial = 14.90
+if 'grafico_usd_inicial' not in st.session_state:
+    st.session_state.grafico_usd_inicial = 4.90
+if 'grafico_etanol_inicial' not in st.session_state:
+    st.session_state.grafico_etanol_inicial = 2500.0
+if 'grafico_preco_ref' not in st.session_state:
+    st.session_state.grafico_preco_ref = 15.0
+if 'grafico_sensibilidade' not in st.session_state:
+    st.session_state.grafico_sensibilidade = 10.0
+
+# Tenta carregar valores de acompanhamento_safra.py se disponíveis
+if 'simulacao_moagem' in st.session_state:
+    st.session_state.grafico_moagem = st.session_state.simulacao_moagem
+if 'simulacao_atr' in st.session_state:
+    st.session_state.grafico_atr = st.session_state.simulacao_atr
+if 'simulacao_mix' in st.session_state:
+    st.session_state.grafico_mix = st.session_state.simulacao_mix
+if 'simulacao_n_quinz' in st.session_state:
+    st.session_state.grafico_n_quinz = st.session_state.simulacao_n_quinz
+if 'simulacao_data_start' in st.session_state:
+    st.session_state.grafico_data_start = st.session_state.simulacao_data_start
+
+moagem = st.sidebar.number_input(
+    "Moagem total estimada (ton)",
+    value=st.session_state.grafico_moagem,
+    step=10_000_000,
+    key="input_grafico_moagem"
+)
+atr = st.sidebar.number_input(
+    "ATR médio estimado (kg/t)",
+    value=st.session_state.grafico_atr,
+    step=1.0,
+    format="%.1f",
+    key="input_grafico_atr"
+)
+mix = st.sidebar.number_input(
+    "Mix açúcar estimado (%)",
+    value=st.session_state.grafico_mix,
+    step=1.0,
+    format="%.1f",
+    key="input_grafico_mix"
+)
+
+# Salva valores no session_state
+st.session_state.grafico_moagem = moagem
+st.session_state.grafico_atr = atr
+st.session_state.grafico_mix = mix
 
 st.sidebar.divider()
 
 st.sidebar.subheader("⚙️ Simulação")
-n_quinz = st.sidebar.number_input("Nº de quinzenas", value=24, min_value=4, max_value=24, step=1)
-data_start = st.sidebar.date_input("Início da safra", value=date(date.today().year, 4, 1))
+n_quinz = st.sidebar.number_input(
+    "Nº de quinzenas",
+    value=st.session_state.grafico_n_quinz,
+    min_value=4,
+    max_value=24,
+    step=1,
+    key="input_grafico_n_quinz"
+)
+data_start = st.sidebar.date_input(
+    "Início da safra",
+    value=st.session_state.grafico_data_start,
+    key="input_grafico_data_start"
+)
+
+# Salva valores no session_state
+st.session_state.grafico_n_quinz = n_quinz
+st.session_state.grafico_data_start = data_start
 
 st.sidebar.divider()
 
 st.sidebar.subheader("💰 Preços Iniciais")
-ny11_inicial = st.sidebar.number_input("NY11 inicial (USc/lb)", value=14.90, step=0.10, format="%.2f")
-usd_inicial = st.sidebar.number_input("USD/BRL inicial", value=4.90, step=0.01, format="%.2f")
-etanol_inicial = st.sidebar.number_input("Etanol inicial (R$/m³)", value=2500.0, step=50.0, format="%.0f")
+ny11_inicial = st.sidebar.number_input(
+    "NY11 inicial (USc/lb)",
+    value=st.session_state.grafico_ny11_inicial,
+    step=0.10,
+    format="%.2f",
+    key="input_grafico_ny11"
+)
+usd_inicial = st.sidebar.number_input(
+    "USD/BRL inicial",
+    value=st.session_state.grafico_usd_inicial,
+    step=0.01,
+    format="%.2f",
+    key="input_grafico_usd"
+)
+etanol_inicial = st.sidebar.number_input(
+    "Etanol inicial (R$/m³)",
+    value=st.session_state.grafico_etanol_inicial,
+    step=50.0,
+    format="%.0f",
+    key="input_grafico_etanol"
+)
+
+# Salva valores no session_state
+st.session_state.grafico_ny11_inicial = ny11_inicial
+st.session_state.grafico_usd_inicial = usd_inicial
+st.session_state.grafico_etanol_inicial = etanol_inicial
 
 with st.sidebar.expander("🔧 Parâmetros Avançados", expanded=False):
     st.caption("⚙️ Ajustes finos da simulação (opcional)")
-    preco_ref = st.sidebar.number_input("Preço referência NY11 (USc/lb)", value=15.0, step=0.5, format="%.1f", key="preco_ref_grafico")
-    sensibilidade = st.sidebar.slider("Sensibilidade oferta → preço (%)", 0.0, 30.0, 10.0, 1.0, key="sensibilidade_grafico")
+    preco_ref = st.number_input(
+        "Preço referência NY11 (USc/lb)",
+        value=st.session_state.grafico_preco_ref,
+        step=0.5,
+        format="%.1f",
+        key="input_grafico_preco_ref"
+    )
+    sensibilidade = st.slider(
+        "Sensibilidade oferta → preço (%)",
+        0.0, 30.0,
+        st.session_state.grafico_sensibilidade,
+        1.0,
+        key="input_grafico_sensibilidade"
+    )
+
+    # Salva valores no session_state
+    st.session_state.grafico_preco_ref = preco_ref
+    st.session_state.grafico_sensibilidade = sensibilidade
 
 # Inicializa dados reais no session_state (compartilhado com acompanhamento_safra)
 if 'dados_reais' not in st.session_state:
@@ -1260,10 +1378,13 @@ if 'choques_precos' not in st.session_state:
 # ============ GERAÇÃO DE DADOS ============
 
 # Gera projeção quinzenal
+# Usa volatilidade de etanol por padrão (pode ser desabilitado se necessário)
 df_projecao = gerar_projecao_quinzenal(
     moagem, atr, mix, int(n_quinz), data_start,
     st.session_state.dados_reais if st.session_state.dados_reais else None,
-    st.session_state.choques_safra if st.session_state.choques_safra else None
+    st.session_state.choques_safra if st.session_state.choques_safra else None,
+    seed=42,
+    usar_volatilidade_etanol=True  # Ativa simulação com volatilidade
 )
 
 # Simula preços

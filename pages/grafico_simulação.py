@@ -846,29 +846,135 @@ def criar_grafico_correlacao_dolar(df):
 # ============================================================================
 
 # Sidebar com parâmetros (mesmos do analise_safra.py)
+# Usa session_state para persistir valores e compartilhar com analise_safra.py
 st.sidebar.header("📊 Parâmetros da Simulação")
 
-moagem = st.sidebar.number_input("Moagem total (ton)", value=600_000_000, step=10_000_000)
-atr = st.sidebar.number_input("ATR médio (kg/t)", value=135.0, step=1.0, format="%.1f")
-mix = st.sidebar.number_input("Mix açúcar (%)", value=48.0, step=1.0, format="%.1f")
+# Inicializa valores no session_state se não existirem
+if 'simulacao_moagem' not in st.session_state:
+    st.session_state.simulacao_moagem = 600_000_000
+if 'simulacao_atr' not in st.session_state:
+    st.session_state.simulacao_atr = 135.0
+if 'simulacao_mix' not in st.session_state:
+    st.session_state.simulacao_mix = 48.0
+if 'simulacao_n_quinz' not in st.session_state:
+    st.session_state.simulacao_n_quinz = 24
+if 'simulacao_data_start' not in st.session_state:
+    st.session_state.simulacao_data_start = date(date.today().year, 4, 1)
+if 'simulacao_ny11_inicial' not in st.session_state:
+    st.session_state.simulacao_ny11_inicial = 14.90
+if 'simulacao_usd_inicial' not in st.session_state:
+    st.session_state.simulacao_usd_inicial = 4.90
+if 'simulacao_etanol_inicial' not in st.session_state:
+    st.session_state.simulacao_etanol_inicial = 2500.0
+if 'simulacao_preco_ref' not in st.session_state:
+    st.session_state.simulacao_preco_ref = 15.0
+if 'simulacao_sensibilidade' not in st.session_state:
+    st.session_state.simulacao_sensibilidade = 10.0
+if 'simulacao_usar_paridade' not in st.session_state:
+    st.session_state.simulacao_usar_paridade = False
+
+moagem = st.sidebar.number_input(
+    "Moagem total (ton)",
+    value=st.session_state.simulacao_moagem,
+    step=10_000_000,
+    key="input_simulacao_moagem"
+)
+atr = st.sidebar.number_input(
+    "ATR médio (kg/t)",
+    value=st.session_state.simulacao_atr,
+    step=1.0,
+    format="%.1f",
+    key="input_simulacao_atr"
+)
+mix = st.sidebar.number_input(
+    "Mix açúcar (%)",
+    value=st.session_state.simulacao_mix,
+    step=1.0,
+    format="%.1f",
+    key="input_simulacao_mix"
+)
+
+# Salva valores no session_state
+st.session_state.simulacao_moagem = moagem
+st.session_state.simulacao_atr = atr
+st.session_state.simulacao_mix = mix
 
 st.sidebar.divider()
 
 st.sidebar.subheader("💰 Preços Iniciais")
-ny11_inicial = st.sidebar.number_input("NY11 inicial (USc/lb)", value=14.90, step=0.10, format="%.2f")
-usd_inicial = st.sidebar.number_input("USD/BRL inicial", value=4.90, step=0.01, format="%.2f")
-etanol_inicial = st.sidebar.number_input("Etanol inicial (R$/m³)", value=2500.0, step=50.0, format="%.0f")
+ny11_inicial = st.sidebar.number_input(
+    "NY11 inicial (USc/lb)",
+    value=st.session_state.simulacao_ny11_inicial,
+    step=0.10,
+    format="%.2f",
+    key="input_simulacao_ny11"
+)
+usd_inicial = st.sidebar.number_input(
+    "USD/BRL inicial",
+    value=st.session_state.simulacao_usd_inicial,
+    step=0.01,
+    format="%.2f",
+    key="input_simulacao_usd"
+)
+etanol_inicial = st.sidebar.number_input(
+    "Etanol inicial (R$/m³)",
+    value=st.session_state.simulacao_etanol_inicial,
+    step=50.0,
+    format="%.0f",
+    key="input_simulacao_etanol"
+)
+
+# Salva valores no session_state
+st.session_state.simulacao_ny11_inicial = ny11_inicial
+st.session_state.simulacao_usd_inicial = usd_inicial
+st.session_state.simulacao_etanol_inicial = etanol_inicial
 
 st.sidebar.divider()
 
 st.sidebar.subheader("⚙️ Simulação")
-n_quinz = st.sidebar.number_input("Nº de quinzenas", value=24, min_value=4, max_value=24, step=1)
-data_start = st.sidebar.date_input("Início da safra", value=date(date.today().year, 4, 1))
+n_quinz = st.sidebar.number_input(
+    "Nº de quinzenas",
+    value=st.session_state.simulacao_n_quinz,
+    min_value=4,
+    max_value=24,
+    step=1,
+    key="input_simulacao_n_quinz"
+)
+data_start = st.sidebar.date_input(
+    "Início da safra",
+    value=st.session_state.simulacao_data_start,
+    key="input_simulacao_data_start"
+)
+
+# Salva valores no session_state
+st.session_state.simulacao_n_quinz = n_quinz
+st.session_state.simulacao_data_start = data_start
 
 with st.sidebar.expander("🔧 Parâmetros Avançados", expanded=False):
-    preco_ref = st.number_input("Preço referência NY11 (USc/lb)", value=15.0, step=0.5, format="%.1f")
-    sensibilidade = st.slider("Sensibilidade oferta → preço (%)", 0.0, 30.0, 10.0, 1.0)
-    usar_paridade = st.checkbox("Usar paridade etanol/açúcar", value=False)
+    preco_ref = st.number_input(
+        "Preço referência NY11 (USc/lb)",
+        value=st.session_state.simulacao_preco_ref,
+        step=0.5,
+        format="%.1f",
+        key="input_simulacao_preco_ref"
+    )
+    sensibilidade = st.slider(
+        "Sensibilidade oferta → preço (%)",
+        0.0, 30.0,
+        st.session_state.simulacao_sensibilidade,
+        1.0,
+        key="input_simulacao_sensibilidade"
+    )
+    usar_paridade = st.checkbox(
+        "Usar paridade etanol/açúcar",
+        value=st.session_state.simulacao_usar_paridade,
+        key="input_simulacao_usar_paridade"
+    )
+
+    # Salva valores no session_state
+    st.session_state.simulacao_preco_ref = preco_ref
+    st.session_state.simulacao_sensibilidade = sensibilidade
+    st.session_state.simulacao_usar_paridade = usar_paridade
 
 # Inicializa session state
 if 'choques_safra' not in st.session_state:
