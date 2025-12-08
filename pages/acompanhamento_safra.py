@@ -698,7 +698,7 @@ def gerar_projecao_baseline_exata(moagem_total, atr_medio, mix_medio, n_quinzena
 
 def gerar_projecao_quinzenal(moagem_total, atr_medio, mix_medio, n_quinzenas=24,
                               data_inicio=None, dados_reais=None, choques_safra=None, seed=42,
-                              usar_volatilidade_etanol=False):
+                              usar_volatilidade_etanol=False, estoques_globais="Neutro", nivel_estoques=0.0):
     """
     Gera projeção quinzenal ajustada com dados reais.
 
@@ -996,6 +996,25 @@ def gerar_projecao_quinzenal(moagem_total, atr_medio, mix_medio, n_quinzenas=24,
                 elif tipo == 'MIX':
                     mix_q = mix_q * (1 + magnitude / 100)
 
+        # Ajusta mix baseado em estoques globais (apenas para quinzenas futuras sem dados reais)
+        if not tem_dados_reais:
+            # Estima produção normalizada baseada na moagem quinzenal
+            # Produção média típica por quinzena: ~1.5M ton
+            moagem_total_estimada = moagem_total
+            producao_total_estimada = ((moagem_total_estimada * (mix_q / 100) * atr_q) * FATOR_ACUCAR) / 1000
+            producao_media_estimada = producao_total_estimada / n_quinzenas
+            producao_q_normalizada = (moagem_q * (mix_q / 100) * atr_q * FATOR_ACUCAR / 1000) / 1_500_000
+            
+            # Impacto dos estoques globais no mix
+            if estoques_globais == "Superávit" and producao_q_normalizada > 1.0:
+                # Superávit + grande produção: reduz mix (menos açúcar, mais etanol)
+                reducao_mix_estoques = (nivel_estoques / 100) * min(producao_q_normalizada - 1.0, 0.5) * 5.0
+                mix_q = mix_q - reducao_mix_estoques
+            elif estoques_globais == "Déficit" and producao_q_normalizada < 1.0:
+                # Déficit + baixa produção: aumenta mix (mais açúcar, menos etanol)
+                aumento_mix_estoques = (nivel_estoques / 100) * min(1.0 - producao_q_normalizada, 0.5) * 3.0
+                mix_q = mix_q + aumento_mix_estoques
+
         # Garante limites razoáveis
         mix_q = max(0, min(100, mix_q))
         atr_q = max(0, atr_q)
@@ -1122,13 +1141,15 @@ def gerar_projecao_quinzenal(moagem_total, atr_medio, mix_medio, n_quinzenas=24,
 
 def simular_precos(ny11_inicial, usd_inicial, etanol_inicial, n_quinzenas,
                    df_producao, preco_ref=15.0, sensibilidade=0.10,
-                   choques_precos=None, usar_paridade=False, dados_reais=None, seed=123):
+                   choques_precos=None, usar_paridade=False, dados_reais=None, seed=123,
+                   estoques_globais="Neutro", nivel_estoques=0.0):
     """
     Simula preços considerando:
     - Volatilidade e correlação entre commodities
     - Impacto da oferta (produção informada) nos preços
     - Choques externos (opcional)
     - Volatilidades específicas para etanol anidro e hidratado
+    - Estoques globais (déficit/superávit) que impactam preços
     """
     rng = np.random.default_rng(seed)
 
@@ -1169,26 +1190,39 @@ def simular_precos(ny11_inicial, usd_inicial, etanol_inicial, n_quinzenas,
     producao_normalizada = producao_media / 1_500_000
     fator_oferta_base = 1.0 - ((producao_normalizada - 1.0) * sensibilidade)
 
-    # Ajusta baseado na interação preço inicial vs produção
+    # Aplica impacto dos estoques globais
+    fator_estoques = 1.0
+    if estoques_globais == "Déficit":
+        # Déficit: suporta preços (tendência de alta)
+        fator_estoques = 1.0 + (nivel_estoques / 100) * 0.5
+        if producao_normalizada > 1.0:  # Alta produção com déficit
+            fator_estoques *= 1.1
+    elif estoques_globais == "Superávit":
+        # Superávit: pressiona preços (tendência de queda)
+        fator_estoques = 1.0 - (nivel_estoques / 100) * 0.5
+        if producao_normalizada > 1.0:  # Grande produção com superávit
+            fator_estoques *= 0.9
+
+    # Ajusta baseado na interação preço inicial vs produção vs estoques
     if desvio_preco < -0.05:  # Preço baixo
         if producao_normalizada > 1.0:
-            fator_oferta = fator_oferta_base * 0.9
-            direcao = "queda"
+            fator_oferta = fator_oferta_base * 0.9 * fator_estoques
+            direcao = "queda" if fator_estoques < 1.0 else "alta"
         else:
-            fator_oferta = fator_oferta_base * 1.1
+            fator_oferta = fator_oferta_base * 1.1 * fator_estoques
             direcao = "alta"
     elif desvio_preco > 0.05:  # Preço alto
         if producao_normalizada > 1.0:
-            fator_oferta = fator_oferta_base * 1.05
-            direcao = "alta"
+            fator_oferta = fator_oferta_base * 1.05 * fator_estoques
+            direcao = "alta" if fator_estoques > 1.0 else "queda"
         else:
-            fator_oferta = fator_oferta_base * 1.15
+            fator_oferta = fator_oferta_base * 1.15 * fator_estoques
             direcao = "alta"
     else:  # Preço neutro
-        fator_oferta = fator_oferta_base
+        fator_oferta = fator_oferta_base * fator_estoques
         direcao = "alta" if fator_oferta > 1.0 else "queda" if fator_oferta < 1.0 else "neutro"
 
-    fator_oferta = np.clip(fator_oferta, 0.7, 1.3)
+    fator_oferta = np.clip(fator_oferta, 0.5, 1.5)
 
     # Simula trajetória
     ny11 = [ny11_inicial]
@@ -1328,6 +1362,10 @@ if 'simulacao_n_quinz' not in st.session_state:
     st.session_state.simulacao_n_quinz = 24
 if 'simulacao_data_start' not in st.session_state:
     st.session_state.simulacao_data_start = date(date.today().year, 4, 1)
+if 'simulacao_estoques_globais' not in st.session_state:
+    st.session_state.simulacao_estoques_globais = "Neutro"
+if 'simulacao_nivel_estoques' not in st.session_state:
+    st.session_state.simulacao_nivel_estoques = 0.0
 
 moagem = st.sidebar.number_input(
     "Moagem total estimada (ton)",
@@ -1420,6 +1458,34 @@ with st.sidebar.expander("🔧 Parâmetros Avançados", expanded=False):
     st.caption("⚙️ Ajustes finos da simulação (opcional)")
     preco_ref = st.number_input("Preço referência NY11 (USc/lb)", value=15.0, step=0.5, format="%.1f")
     sensibilidade = st.slider("Sensibilidade oferta → preço (%)", 0.0, 30.0, 10.0, 1.0)
+
+st.sidebar.divider()
+
+st.sidebar.subheader("📦 Estoques Globais")
+st.sidebar.caption("💡 Configure o cenário de estoques globais de açúcar para impactar os preços")
+estoques_globais = st.sidebar.selectbox(
+    "Situação dos Estoques",
+    ["Neutro", "Déficit", "Superávit"],
+    index=["Neutro", "Déficit", "Superávit"].index(st.session_state.simulacao_estoques_globais),
+    key="input_simulacao_estoques_globais"
+)
+
+if estoques_globais != "Neutro":
+    nivel_estoques = st.sidebar.slider(
+        f"Nível de {estoques_globais} (%)",
+        min_value=0.0,
+        max_value=50.0,
+        value=st.session_state.simulacao_nivel_estoques,
+        step=1.0,
+        format="%.1f",
+        key="input_simulacao_nivel_estoques",
+        help=f"Quanto maior o {estoques_globais.lower()}, maior o impacto nos preços"
+    )
+    st.session_state.simulacao_nivel_estoques = nivel_estoques
+else:
+    st.session_state.simulacao_nivel_estoques = 0.0
+
+st.session_state.simulacao_estoques_globais = estoques_globais
 
 # Inicializa dados reais no session_state (carrega de arquivo se existir)
 if 'dados_reais' not in st.session_state:
@@ -1801,7 +1867,9 @@ df_projecao = gerar_projecao_quinzenal(
     st.session_state.dados_reais if st.session_state.dados_reais else None,
     st.session_state.choques_safra if st.session_state.choques_safra else None,
     seed=42,
-    usar_volatilidade_etanol=True  # Ativa simulação com volatilidade
+    usar_volatilidade_etanol=True,  # Ativa simulação com volatilidade
+    estoques_globais=estoques_globais,
+    nivel_estoques=st.session_state.simulacao_nivel_estoques
 )
 
 # Simula preços
@@ -1812,7 +1880,10 @@ df_precos, direcao, fator_oferta, choques_aplicados = simular_precos(
     preco_ref, sensibilidade / 100,
     st.session_state.choques_precos if st.session_state.choques_precos else None,
     False,  # usar_paridade = False
-    st.session_state.dados_reais if st.session_state.dados_reais else None
+    st.session_state.dados_reais if st.session_state.dados_reais else None,
+    seed=123,
+    estoques_globais=estoques_globais,
+    nivel_estoques=st.session_state.simulacao_nivel_estoques
 )
 
 # Merge com preços
@@ -1820,7 +1891,13 @@ df_completo = df_projecao.merge(df_precos, on="Quinzena")
 
 # Calcula totais
 acucar_total = df_completo["Açúcar (t)"].sum()
-etanol_total = df_completo["Etanol Total (m³)"].sum()
+# Etanol de cana (baseado no cálculo padrão: ATR, mix e fator)
+etanol_cana_total = df_completo["Etanol Total (m³)"].sum()
+# Etanol de milho (30% do total de etanol de cana)
+etanol_milho_total = df_completo["Etanol Anidro Milho (m³)"].sum() + df_completo["Etanol Hidratado Milho (m³)"].sum()
+# Etanol total estimado = cana + milho
+etanol_total_estimado = etanol_cana_total + etanol_milho_total
+
 etanol_anidro_cana_total = df_completo["Etanol Anidro Cana (m³)"].sum()
 etanol_hidratado_cana_total = df_completo["Etanol Hidratado Cana (m³)"].sum()
 etanol_anidro_milho_total = df_completo["Etanol Anidro Milho (m³)"].sum()
@@ -1840,25 +1917,38 @@ st.subheader("📈 Resultados da Projeção")
 
 col1, col2, col3, col4 = st.columns(4)
 col1.metric("Açúcar estimado", fmt_br(acucar_total, 0) + " t")
-col2.metric("Etanol total estimado", fmt_br(etanol_total, 0) + " m³")
-col3.metric("Preço final NY11", f"{ny11_final:.2f} USc/lb",
-           delta=f"{variacao_ny11:+.2f} ({variacao_pct:+.2f}%)",
-           delta_color="inverse" if variacao_ny11 < 0 else "normal")
-col4.metric("Preço final (R$/saca)", fmt_br(preco_saca_final, 2))
+col2.metric("Etanol de Cana", fmt_br(etanol_cana_total, 0) + " m³")
+col3.metric("Etanol de Milho", fmt_br(etanol_milho_total, 0) + " m³")
+col4.metric("Etanol Total Estimado", fmt_br(etanol_total_estimado, 0) + " m³",
+           help="Soma da projeção de etanol de cana + etanol de milho")
 
 st.write("")
 col5, col6, col7, col8 = st.columns(4)
-col5.metric("Etanol Anidro Cana", fmt_br(etanol_anidro_cana_total, 0) + " m³")
-col6.metric("Etanol Hidratado Cana", fmt_br(etanol_hidratado_cana_total, 0) + " m³")
-col7.metric("Etanol Anidro Milho", fmt_br(etanol_anidro_milho_total, 0) + " m³")
-col8.metric("Etanol Hidratado Milho", fmt_br(etanol_hidratado_milho_total, 0) + " m³")
-
-st.write("")
-col9, col10 = st.columns(2)
-col9.metric("Etanol Total Acumulado", fmt_br(etanol_total_acum, 0) + " m³")
-col10.metric("USD/BRL final", f"{usd_final:.2f}",
+col5.metric("Preço final NY11", f"{ny11_final:.2f} USc/lb",
+           delta=f"{variacao_ny11:+.2f} ({variacao_pct:+.2f}%)",
+           delta_color="inverse" if variacao_ny11 < 0 else "normal")
+col6.metric("Preço final (R$/saca)", fmt_br(preco_saca_final, 2))
+col7.metric("USD/BRL final", f"{usd_final:.2f}",
            delta=f"{usd_final - usd_inicial:+.2f}",
            delta_color="inverse" if (usd_final - usd_inicial) < 0 else "normal")
+col8.metric("Tendência", direcao.upper(),
+           delta=f"{variacao_pct:+.2f}%",
+           delta_color="inverse" if variacao_ny11 < 0 else "normal")
+
+st.divider()
+st.subheader("🍯 Detalhamento de Etanol")
+
+col_et1, col_et2, col_et3, col_et4 = st.columns(4)
+col_et1.metric("Etanol Anidro Cana", fmt_br(etanol_anidro_cana_total, 0) + " m³")
+col_et2.metric("Etanol Hidratado Cana", fmt_br(etanol_hidratado_cana_total, 0) + " m³")
+col_et3.metric("Etanol Anidro Milho", fmt_br(etanol_anidro_milho_total, 0) + " m³")
+col_et4.metric("Etanol Hidratado Milho", fmt_br(etanol_hidratado_milho_total, 0) + " m³")
+
+st.write("")
+col_et5, col_et6, col_et7 = st.columns(3)
+col_et5.metric("Etanol Total Cana", fmt_br(etanol_cana_total, 0) + " m³")
+col_et6.metric("Etanol Total Milho", fmt_br(etanol_milho_total, 0) + " m³")
+col_et7.metric("Etanol Total Acumulado", fmt_br(etanol_total_acum, 0) + " m³")
 
 st.divider()
 st.subheader("📅 Evolução Quinzenal")
@@ -1953,6 +2043,15 @@ choques_info = ""
 if choques_aplicados:
     choques_info = f"\n\n**⚡ Choques de preços aplicados:**\n" + "\n".join(f"- {c}" for c in choques_aplicados)
 
+estoques_info = ""
+if estoques_globais != "Neutro":
+    estoques_info = f"\n\n**📦 Estoques Globais:** {estoques_globais} ({st.session_state.simulacao_nivel_estoques:.1f}%)\n"
+    if estoques_globais == "Déficit":
+        estoques_info += f"→ Déficit de estoques suporta preços (tendência de alta)\n"
+    elif estoques_globais == "Superávit":
+        estoques_info += f"→ Superávit de estoques pressiona preços (tendência de queda)\n"
+        estoques_info += f"→ Pode ocasionar variação no mix (redução de açúcar, aumento de etanol)\n"
+
 st.info(
     f"""
     **Status da Projeção:**
@@ -1960,7 +2059,7 @@ st.info(
     - **Quinzenas projetadas:** {n_quinzenas_projetadas} de {int(n_quinz)}
     - **Última quinzena com dados reais:** {max(st.session_state.dados_reais.keys()) if st.session_state.dados_reais else 'Nenhuma'}
     - **Tendência esperada:** {direcao.upper()}
-    {choques_info}
+    {choques_info}{estoques_info}
     
     💡 *A projeção é ajustada automaticamente baseada nos dados reais inseridos. Choques só podem ser aplicados em quinzenas futuras (sem dados reais).*
     """

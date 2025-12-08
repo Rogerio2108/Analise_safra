@@ -478,7 +478,8 @@ def ajustar_mix_por_paridade(mix_atual, paridade, sensibilidade=0.20):
 
 def simular_precos(ny11_inicial, usd_inicial, etanol_inicial, n_quinzenas, 
                    df_producao, preco_ref=15.0, sensibilidade=0.10, 
-                   choques_precos=None, usar_paridade=True, seed=123):
+                   choques_precos=None, usar_paridade=True, seed=123,
+                   estoques_globais="Neutro", nivel_estoques=0.0):
     """
     Simula preços considerando:
     - Volatilidade e correlação entre commodities
@@ -486,6 +487,7 @@ def simular_precos(ny11_inicial, usd_inicial, etanol_inicial, n_quinzenas,
     - Interação preço inicial vs produção
     - Paridade etanol/açúcar (ajusta mix dinamicamente)
     - Choques externos (opcional)
+    - Estoques globais (déficit/superávit) que impactam preços
     """
     rng = np.random.default_rng(seed)
     
@@ -509,7 +511,7 @@ def simular_precos(ny11_inicial, usd_inicial, etanol_inicial, n_quinzenas,
     # Classifica preço inicial (alto/baixo) apenas para lógica de interação
     desvio_preco = (ny11_inicial - preco_ref) / preco_ref if preco_ref > 0 else 0
     
-    # Calcula fator de oferta baseado APENAS na produção informada
+    # Calcula fator de oferta baseado na produção informada
     # Usa produção média por quinzena para calcular impacto proporcional
     # Produção maior → mais oferta → pressiona preços
     # Aplica sensibilidade proporcionalmente à produção média
@@ -517,26 +519,45 @@ def simular_precos(ny11_inicial, usd_inicial, etanol_inicial, n_quinzenas,
     producao_normalizada = producao_media / 1_500_000  # Normaliza para ter base de comparação
     fator_oferta_base = 1.0 - ((producao_normalizada - 1.0) * sensibilidade)
     
-    # Ajusta baseado na interação preço inicial vs produção
+    # Aplica impacto dos estoques globais
+    fator_estoques = 1.0
+    if estoques_globais == "Déficit":
+        # Déficit: suporta preços (tendência de alta)
+        # Quanto maior o déficit, mais suporte aos preços
+        # Déficit + alta produção = suporte ainda maior (escassez)
+        fator_estoques = 1.0 + (nivel_estoques / 100) * 0.5  # Até 25% de suporte adicional
+        if producao_normalizada > 1.0:  # Alta produção com déficit
+            # Déficit + alta produção = forte suporte aos preços
+            fator_estoques *= 1.1
+    elif estoques_globais == "Superávit":
+        # Superávit: pressiona preços (tendência de queda)
+        # Quanto maior o superávit, mais pressão nos preços
+        # Superávit + grande produção = pressão ainda maior
+        fator_estoques = 1.0 - (nivel_estoques / 100) * 0.5  # Até 25% de pressão adicional
+        if producao_normalizada > 1.0:  # Grande produção com superávit
+            # Superávit + grande produção = forte pressão nos preços
+            fator_estoques *= 0.9
+    
+    # Ajusta baseado na interação preço inicial vs produção vs estoques
     if desvio_preco < -0.05:  # Preço baixo
         if producao_normalizada > 1.0:  # Produção acima da normalizada
-            fator_oferta = fator_oferta_base * 0.9  # Queda acentuada
-            direcao = "queda"
+            fator_oferta = fator_oferta_base * 0.9 * fator_estoques
+            direcao = "queda" if fator_estoques < 1.0 else "alta"
         else:  # Produção abaixo da normalizada
-            fator_oferta = fator_oferta_base * 1.1  # Alta forte
+            fator_oferta = fator_oferta_base * 1.1 * fator_estoques
             direcao = "alta"
     elif desvio_preco > 0.05:  # Preço alto
         if producao_normalizada > 1.0:  # Produção acima da normalizada
-            fator_oferta = fator_oferta_base * 1.05  # Pode subir
-            direcao = "alta"
+            fator_oferta = fator_oferta_base * 1.05 * fator_estoques
+            direcao = "alta" if fator_estoques > 1.0 else "queda"
         else:  # Produção abaixo da normalizada
-            fator_oferta = fator_oferta_base * 1.15  # Continua alto
+            fator_oferta = fator_oferta_base * 1.15 * fator_estoques
             direcao = "alta"
     else:  # Preço neutro
-        fator_oferta = fator_oferta_base
+        fator_oferta = fator_oferta_base * fator_estoques
         direcao = "alta" if fator_oferta > 1.0 else "queda" if fator_oferta < 1.0 else "neutro"
     
-    fator_oferta = np.clip(fator_oferta, 0.7, 1.3)
+    fator_oferta = np.clip(fator_oferta, 0.5, 1.5)  # Amplia range para permitir maior impacto dos estoques
     
     # Simula trajetória
     ny11 = [ny11_inicial]
@@ -569,15 +590,33 @@ def simular_precos(ny11_inicial, usd_inicial, etanol_inicial, n_quinzenas,
         # Calcula paridade etanol/açúcar e ajusta mix dinamicamente
         mix_base = df_producao.iloc[i]["MIX"] if i < len(df_producao) else mix_dinamico
         
+        # Ajusta mix baseado em estoques globais e paridade
+        mix_dinamico = mix_base
+        
+        # Impacto dos estoques globais no mix
+        # Superávit + grande produção pode pressionar preços e ocasionar variação no mix
+        if estoques_globais == "Superávit" and producao_normalizada > 1.0:
+            # Superávit + grande produção: reduz mix (menos açúcar, mais etanol)
+            # Quanto maior o superávit e produção, maior a redução
+            reducao_mix_estoques = (nivel_estoques / 100) * (producao_normalizada - 1.0) * 5.0
+            mix_dinamico = mix_dinamico - reducao_mix_estoques
+        elif estoques_globais == "Déficit" and producao_normalizada < 1.0:
+            # Déficit + baixa produção: aumenta mix (mais açúcar, menos etanol)
+            # Quanto maior o déficit e menor a produção, maior o aumento
+            aumento_mix_estoques = (nivel_estoques / 100) * (1.0 - producao_normalizada) * 3.0
+            mix_dinamico = mix_dinamico + aumento_mix_estoques
+        
         if usar_paridade:
             # Calcula paridade: etanol FOB vs açúcar FOB (ambos em cents/lb)
             # Nota: TAXA_POL fixa (4,5%) e DESCONTO_VHP_FOB (0,10) definidos em Dados_base.py
             paridade = calcular_paridade_etanol_acucar(etanol[-1], ny11[-1], usd[-1])
             
             # Ajusta mix baseado na paridade (impacto direto na produção)
-            mix_dinamico = ajustar_mix_por_paridade(mix_base, paridade)
-        else:
-            mix_dinamico = mix_base
+            # Combina ajuste de estoques com ajuste de paridade
+            mix_dinamico = ajustar_mix_por_paridade(mix_dinamico, paridade)
+        
+        # Garante limites
+        mix_dinamico = max(0, min(100, mix_dinamico))
         
         mix_ajustado_por_quinzena.append(mix_dinamico)
         
@@ -809,6 +848,10 @@ if 'analise_sensibilidade' not in st.session_state:
     st.session_state.analise_sensibilidade = 10.0
 if 'analise_usar_paridade' not in st.session_state:
     st.session_state.analise_usar_paridade = False
+if 'analise_estoques_globais' not in st.session_state:
+    st.session_state.analise_estoques_globais = "Neutro"  # "Déficit", "Superávit", "Neutro"
+if 'analise_nivel_estoques' not in st.session_state:
+    st.session_state.analise_nivel_estoques = 0.0  # Nível de déficit/superávit em %
 
 moagem = st.sidebar.number_input(
     "Moagem total (ton)",
@@ -923,6 +966,34 @@ with st.sidebar.expander("🔧 Parâmetros Avançados", expanded=False):
     st.session_state.analise_sensibilidade = sensibilidade
     st.session_state.analise_usar_paridade = usar_paridade
 
+st.sidebar.divider()
+
+st.sidebar.subheader("📦 Estoques Globais")
+st.sidebar.caption("💡 Configure o cenário de estoques globais de açúcar para impactar os preços")
+estoques_globais = st.sidebar.selectbox(
+    "Situação dos Estoques",
+    ["Neutro", "Déficit", "Superávit"],
+    index=["Neutro", "Déficit", "Superávit"].index(st.session_state.analise_estoques_globais),
+    key="input_analise_estoques_globais"
+)
+
+if estoques_globais != "Neutro":
+    nivel_estoques = st.sidebar.slider(
+        f"Nível de {estoques_globais} (%)",
+        min_value=0.0,
+        max_value=50.0,
+        value=st.session_state.analise_nivel_estoques,
+        step=1.0,
+        format="%.1f",
+        key="input_analise_nivel_estoques",
+        help=f"Quanto maior o {estoques_globais.lower()}, maior o impacto nos preços"
+    )
+    st.session_state.analise_nivel_estoques = nivel_estoques
+else:
+    st.session_state.analise_nivel_estoques = 0.0
+
+st.session_state.analise_estoques_globais = estoques_globais
+
 # Choques de SAFRA (permite múltiplos choques por quinzena)
 criar_widget_choques("🌾 Choques de Safra", "Simule eventos que afetam a PRODUÇÃO (moagem, ATR, mix)",
                      ["Moagem", "ATR", "MIX"], "choques_safra", int(n_quinz), permitir_multiplos=True)
@@ -949,7 +1020,10 @@ choques_precos = st.session_state.get('choques', {})
 df_precos, direcao, fator_oferta, choques_aplicados, mix_ajustado = simular_precos(
     ny11_inicial, usd_inicial, etanol_inicial, int(n_quinz),
     df_base, preco_ref, sensibilidade / 100, 
-    choques_precos if choques_precos else None, usar_paridade
+    choques_precos if choques_precos else None, usar_paridade,
+    seed=123,
+    estoques_globais=estoques_globais,
+    nivel_estoques=st.session_state.analise_nivel_estoques
 )
 
 # Recalcula produção final considerando mix ajustado por paridade
@@ -1201,6 +1275,24 @@ choques_info = ""
 if choques_aplicados:
     choques_info = f"\n\n**⚡ Choques de preços:**\n" + "\n".join(f"- {c}" for c in choques_aplicados)
 
+# Calcula produção normalizada para análise de estoques
+producao_total_calc = df_completo["Açúcar (t)"].sum()
+producao_media_calc = producao_total_calc / int(n_quinz) if int(n_quinz) > 0 else 0
+producao_normalizada_calc = producao_media_calc / 1_500_000 if producao_media_calc > 0 else 1.0
+
+estoques_info = ""
+if estoques_globais != "Neutro":
+    estoques_info = f"\n\n**📦 Estoques Globais:** {estoques_globais} ({st.session_state.analise_nivel_estoques:.1f}%)\n"
+    if estoques_globais == "Déficit":
+        estoques_info += f"→ Déficit de estoques suporta preços (tendência de alta)\n"
+        if producao_normalizada_calc > 1.0:
+            estoques_info += f"→ Déficit + alta produção = forte suporte aos preços\n"
+    elif estoques_globais == "Superávit":
+        estoques_info += f"→ Superávit de estoques pressiona preços (tendência de queda)\n"
+        if producao_normalizada_calc > 1.0:
+            estoques_info += f"→ Superávit + grande produção = forte pressão nos preços\n"
+            estoques_info += f"→ Pode ocasionar variação no mix (redução de açúcar, aumento de etanol)\n"
+
 choques_safra_info = ""
 if choques_safra:
     choques_safra_info = f"\n\n**🌾 Choques de safra:**\n"
@@ -1262,7 +1354,7 @@ st.info(
     - **Inicial:** {ny11_inicial:.2f} USc/lb → **Final:** {ny11_final:.2f} USc/lb
     - **Variação:** {variacao_ny11:+.2f} USc/lb ({variacao_pct:+.2f}%)
     - **Tendência:** {direcao.upper()}
-    {choques_info}{choques_safra_info}{paridade_info}
+    {choques_info}{choques_safra_info}{estoques_info}{paridade_info}
     
     {'🔴 **Alta produção:** Maior oferta tende a pressionar preços' if producao_alta else '🟢 **Baixa produção:** Menor oferta tende a suportar preços'}
     
