@@ -378,7 +378,12 @@ def buscar_ny11_investing(data_corte=None):
 # ============================================================================
 
 def salvar_dados_reais(dados_reais, arquivo="dados_reais_safra.json"):
-    """Salva dados reais em arquivo JSON"""
+    """
+    Salva dados reais em arquivo JSON.
+    
+    Returns:
+        bool: True se salvou com sucesso, False caso contrário
+    """
     try:
         caminho_arquivo = Path(arquivo)
         with open(caminho_arquivo, 'w', encoding='utf-8') as f:
@@ -1444,15 +1449,46 @@ with st.sidebar.expander("🌐 Buscar Preços Reais", expanded=False):
         data_usd = st.session_state.get('usd_buscado_data', data_busca)
         st.info(f"💵 **USD/BRL encontrado:** {st.session_state['usd_buscado']:.4f} (Data: {data_usd.strftime('%d/%m/%Y')})")
 
-# Usa valores buscados se disponíveis, senão usa valores padrão
-usd_inicial_valor = st.session_state.get('usd_buscado', 4.90)
+# Inicializa preços iniciais no session_state se não existirem
+if 'simulacao_ny11_inicial' not in st.session_state:
+    st.session_state.simulacao_ny11_inicial = 14.90
+if 'simulacao_usd_inicial' not in st.session_state:
+    # Usa valor buscado se disponível, senão usa padrão
+    usd_buscado = st.session_state.get('usd_buscado', 4.90)
+    st.session_state.simulacao_usd_inicial = safe_float(usd_buscado, 4.90)
+if 'simulacao_etanol_inicial' not in st.session_state:
+    st.session_state.simulacao_etanol_inicial = 2500.0
 
-# Converte valores com segurança para float
-usd_inicial_valor_safe = safe_float(usd_inicial_valor, 4.90)
+# Atualiza se houver valor buscado novo
+if 'usd_buscado' in st.session_state:
+    st.session_state.simulacao_usd_inicial = safe_float(st.session_state['usd_buscado'], st.session_state.simulacao_usd_inicial)
 
-ny11_inicial = st.sidebar.number_input("NY11 inicial (USc/lb)", value=14.90, step=0.10, format="%.2f", key="ny11_inicial_input")
-usd_inicial = st.sidebar.number_input("USD/BRL inicial", value=usd_inicial_valor_safe, step=0.01, format="%.4f", key="usd_inicial_input")
-etanol_inicial = st.sidebar.number_input("Etanol inicial (R$/m³)", value=2500.0, step=50.0, format="%.0f")
+ny11_inicial = st.sidebar.number_input(
+    "NY11 inicial (USc/lb)",
+    value=st.session_state.simulacao_ny11_inicial,
+    step=0.10,
+    format="%.2f",
+    key="ny11_inicial_input"
+)
+usd_inicial = st.sidebar.number_input(
+    "USD/BRL inicial",
+    value=st.session_state.simulacao_usd_inicial,
+    step=0.01,
+    format="%.4f",
+    key="usd_inicial_input"
+)
+etanol_inicial = st.sidebar.number_input(
+    "Etanol inicial (R$/m³)",
+    value=st.session_state.simulacao_etanol_inicial,
+    step=50.0,
+    format="%.0f",
+    key="etanol_inicial_input"
+)
+
+# Salva valores no session_state quando alterados (IMPORTANTE: sempre salva)
+st.session_state.simulacao_ny11_inicial = ny11_inicial
+st.session_state.simulacao_usd_inicial = usd_inicial
+st.session_state.simulacao_etanol_inicial = etanol_inicial
 
 with st.sidebar.expander("🔧 Parâmetros Avançados", expanded=False):
     st.caption("⚙️ Ajustes finos da simulação (opcional)")
@@ -1724,14 +1760,33 @@ with col_btn1:
             st.rerun()
 
 with col_btn2:
-    # Adiciona confirmação antes de limpar todos os dados
-    if st.button("🗑️ Limpar Todos os Dados Reais", use_container_width=True):
-        st.warning("⚠️ **ATENÇÃO:** Esta ação irá apagar TODOS os dados reais inseridos. Esta ação não pode ser desfeita!")
-        if st.button("✅ Confirmar Limpeza", type="primary", key="confirmar_limpeza"):
-            st.session_state.dados_reais = {}
-            salvar_dados_reais(st.session_state.dados_reais)
-            st.success("✅ Todos os dados reais foram removidos!")
-            st.rerun()
+    # Adiciona confirmação dupla antes de limpar todos os dados
+    if st.button("🗑️ Limpar Todos os Dados Reais", use_container_width=True, key="btn_limpar_todos"):
+        st.session_state['mostrar_confirmacao_limpeza'] = True
+    
+    # Mostra confirmação se solicitado
+    if st.session_state.get('mostrar_confirmacao_limpeza', False):
+        st.warning("⚠️ **ATENÇÃO CRÍTICA:** Esta ação irá apagar TODOS os dados reais inseridos. Esta ação NÃO PODE SER DESFEITA!")
+        st.error("🔴 **TODOS OS DADOS REAIS SERÃO PERDIDOS PERMANENTEMENTE!**")
+        
+        col_conf1, col_conf2, col_conf3 = st.columns([1, 1, 1])
+        with col_conf1:
+            if st.button("✅ SIM, Confirmar Limpeza", type="primary", use_container_width=True, key="confirmar_limpeza_sim"):
+                # Cria backup antes de limpar
+                backup_arquivo = f"dados_reais_backup_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.json"
+                try:
+                    salvar_dados_reais(st.session_state.dados_reais, backup_arquivo)
+                    st.session_state.dados_reais = {}
+                    salvar_dados_reais(st.session_state.dados_reais)
+                    st.session_state['mostrar_confirmacao_limpeza'] = False
+                    st.success(f"✅ Todos os dados reais foram removidos! Backup salvo em: {backup_arquivo}")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Erro ao limpar dados: {e}")
+        with col_conf2:
+            if st.button("❌ Cancelar", use_container_width=True, key="cancelar_limpeza"):
+                st.session_state['mostrar_confirmacao_limpeza'] = False
+                st.rerun()
 
 # Lista dados reais inseridos
 if st.session_state.dados_reais:

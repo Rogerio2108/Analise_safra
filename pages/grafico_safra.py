@@ -81,7 +81,7 @@ CORES = {
 
 def criar_grafico_comparacao_real_projetado(df, coluna, titulo, unidade="", eixo_y=""):
     """
-    Cria gráfico comparando dados reais vs projetados vs baseline.
+    Cria gráfico comparando dados reais vs projetados (SEM baseline para evitar duplicação).
 
     Args:
         df: DataFrame com dados
@@ -92,28 +92,17 @@ def criar_grafico_comparacao_real_projetado(df, coluna, titulo, unidade="", eixo
     """
     fig = go.Figure()
 
-    # Baseline (se disponível)
-    coluna_baseline = coluna.replace('Moagem', 'Moagem Baseline').replace('ATR', 'ATR Baseline').replace('MIX', 'MIX Baseline').replace('Açúcar (t)', 'Açúcar Baseline (t)').replace('Etanol Total (m³)', 'Etanol Baseline (m³)')
-    if coluna_baseline in df.columns:
-        fig.add_trace(go.Scatter(
-            x=df['Data'],
-            y=df[coluna_baseline],
-            name='<b>Baseline (Perfil Ideal)</b>',
-            line=dict(color='#17becf', width=2.5, dash='dot'),
-            mode='lines+markers',
-            marker=dict(size=5, symbol='x'),
-            hovertemplate=f'<b>Baseline</b><br>Data: %{{x}}<br>{titulo}: %{{y:,.0f}} {unidade}<extra></extra>'
-        ))
-
-    # Dados projetados (sempre presentes)
+    # Dados projetados (sempre presentes) - linha principal
     fig.add_trace(go.Scatter(
         x=df['Data'],
         y=df[coluna],
         name='<b>Projetado</b>',
-        line=dict(color=CORES['Projetado'], width=3, dash='dash'),
+        line=dict(color=CORES['Projetado'], width=3.5, dash='dash'),
         mode='lines+markers',
-        marker=dict(size=6, symbol='circle'),
-        hovertemplate=f'<b>Projetado</b><br>Data: %{{x}}<br>{titulo}: %{{y:,.0f}} {unidade}<extra></extra>'
+        marker=dict(size=7, symbol='circle', line=dict(width=1, color='white')),
+        hovertemplate=f'<b>Projetado</b><br>Data: %{{x}}<br>{titulo}: %{{y:,.0f}} {unidade}<extra></extra>',
+        fill='tonexty' if len(fig.data) > 0 else None,
+        fillcolor='rgba(140, 86, 75, 0.1)'
     ))
 
     # Identifica dados reais (se houver coluna correspondente)
@@ -200,35 +189,75 @@ def criar_grafico_comparacao_real_projetado(df, coluna, titulo, unidade="", eixo
                 x=datas_reais,
                 y=dados_reais_list,
                 name='<b>Real</b>',
-                line=dict(color=CORES['Real'], width=4),
+                line=dict(color=CORES['Real'], width=4.5),
                 mode='lines+markers',
-                marker=dict(size=8, symbol='diamond'),
+                marker=dict(size=10, symbol='diamond', line=dict(width=1.5, color='white')),
                 hovertemplate=f'<b>Real</b><br>Data: %{{x}}<br>{titulo}: %{{y:,.0f}} {unidade}<extra></extra>'
             ))
 
+    # Adiciona área sombreada entre real e projetado se ambos existirem
+    if dados_reais_list and len(dados_reais_list) > 0:
+        # Encontra datas comuns
+        datas_comuns = [d for d in datas_reais if d in df['Data'].values]
+        if datas_comuns:
+            indices_reais = [datas_reais.index(d) for d in datas_comuns]
+            indices_proj = [df[df['Data'] == d].index[0] for d in datas_comuns if len(df[df['Data'] == d]) > 0]
+            
+            if len(indices_reais) == len(indices_proj) and len(indices_reais) > 0:
+                valores_reais_comuns = [dados_reais_list[i] for i in indices_reais]
+                valores_proj_comuns = [df.iloc[i][coluna] for i in indices_proj]
+                
+                # Adiciona área de diferença
+                fig.add_trace(go.Scatter(
+                    x=datas_comuns,
+                    y=valores_reais_comuns,
+                    fill='tonexty',
+                    fillcolor='rgba(148, 103, 189, 0.2)',
+                    line=dict(width=0),
+                    showlegend=False,
+                    hoverinfo='skip'
+                ))
+
     fig.update_layout(
-        title=dict(text=f'<b>{titulo} - Real vs Projetado</b>', font=dict(size=16)),
-        height=500,
+        title=dict(
+            text=f'<b>{titulo} - Real vs Projetado</b>',
+            font=dict(size=18, family="Arial", color="#1f1f1f"),
+            x=0.5,
+            xanchor='center'
+        ),
+        height=550,
         hovermode='x unified',
         template='plotly_white',
-        font=dict(family="Arial", size=11),
+        plot_bgcolor='rgba(255,255,255,1)',
+        paper_bgcolor='rgba(255,255,255,1)',
+        font=dict(family="Arial", size=12),
         legend=dict(
             orientation="h",
             yanchor="bottom",
             y=1.02,
             xanchor="center",
             x=0.5,
-            font=dict(size=12),
-            bgcolor='rgba(255,255,255,0.0)',
-            bordercolor='rgba(0,0,0,0)',
-            borderwidth=0
+            font=dict(size=13),
+            bgcolor='rgba(255,255,255,0.9)',
+            bordercolor='rgba(0,0,0,0.2)',
+            borderwidth=1
         ),
-        margin=dict(t=100, b=80, l=60, r=60),
-        xaxis=dict(title="<b>Data</b>", title_font=dict(size=12)),
-        yaxis=dict(title=f"<b>{eixo_y or titulo} {unidade}</b>", title_font=dict(size=12))
+        margin=dict(t=120, b=90, l=70, r=70),
+        xaxis=dict(
+            title="<b>Data</b>",
+            title_font=dict(size=13, family="Arial"),
+            gridcolor='rgba(0,0,0,0.1)',
+            showgrid=True
+        ),
+        yaxis=dict(
+            title=f"<b>{eixo_y or titulo} {unidade}</b>",
+            title_font=dict(size=13, family="Arial"),
+            gridcolor='rgba(0,0,0,0.1)',
+            showgrid=True
+        )
     )
 
-    fig.update_xaxes(tickangle=-45, nticks=10)
+    fig.update_xaxes(tickangle=-45, nticks=12, tickfont=dict(size=11))
 
     return fig
 
@@ -260,9 +289,9 @@ def criar_grafico_comparacao_baseline(df, coluna_proj, coluna_baseline, titulo, 
             x=df_baseline_valid['Data'],
             y=df_baseline_valid[coluna_baseline],
             name='<b>Baseline (Perfil Ideal)</b>',
-            line=dict(color='#17becf', width=3, dash='dot'),
+            line=dict(color='#17becf', width=3.5, dash='dot'),
             mode='lines+markers',
-            marker=dict(size=6, symbol='x'),
+            marker=dict(size=7, symbol='x', line=dict(width=1, color='white')),
             hovertemplate=f'<b>Baseline</b><br>Data: %{{x}}<br>{titulo}: %{{y:,.2f}} {unidade}<extra></extra>'
         ))
 
@@ -274,9 +303,9 @@ def criar_grafico_comparacao_baseline(df, coluna_proj, coluna_baseline, titulo, 
             x=df_proj_valid['Data'],
             y=df_proj_valid[coluna_proj],
             name='<b>Projetado</b>',
-            line=dict(color=CORES['Projetado'], width=3, dash='dash'),
+            line=dict(color=CORES['Projetado'], width=3.5, dash='dash'),
             mode='lines+markers',
-            marker=dict(size=6, symbol='circle'),
+            marker=dict(size=7, symbol='circle', line=dict(width=1, color='white')),
             hovertemplate=f'<b>Projetado</b><br>Data: %{{x}}<br>{titulo}: %{{y:,.2f}} {unidade}<extra></extra>'
         ))
 
@@ -313,35 +342,52 @@ def criar_grafico_comparacao_baseline(df, coluna_proj, coluna_baseline, titulo, 
                 x=datas_reais,
                 y=dados_reais_list,
                 name='<b>Real</b>',
-                line=dict(color=CORES['Real'], width=4),
+                line=dict(color=CORES['Real'], width=4.5),
                 mode='lines+markers',
-                marker=dict(size=8, symbol='diamond'),
+                marker=dict(size=10, symbol='diamond', line=dict(width=1.5, color='white')),
                 hovertemplate=f'<b>Real</b><br>Data: %{{x}}<br>{titulo}: %{{y:,.2f}} {unidade}<extra></extra>'
             ))
 
     fig.update_layout(
-        title=dict(text=f'<b>{titulo} - Baseline vs Projetado vs Real</b>', font=dict(size=16)),
-        height=500,
+        title=dict(
+            text=f'<b>{titulo} - Baseline vs Projetado vs Real</b>',
+            font=dict(size=18, family="Arial", color="#1f1f1f"),
+            x=0.5,
+            xanchor='center'
+        ),
+        height=550,
         hovermode='x unified',
         template='plotly_white',
-        font=dict(family="Arial", size=11),
+        plot_bgcolor='rgba(255,255,255,1)',
+        paper_bgcolor='rgba(255,255,255,1)',
+        font=dict(family="Arial", size=12),
         legend=dict(
             orientation="h",
             yanchor="bottom",
             y=1.02,
             xanchor="center",
             x=0.5,
-            font=dict(size=12),
-            bgcolor='rgba(255,255,255,0.0)',
-            bordercolor='rgba(0,0,0,0)',
-            borderwidth=0
+            font=dict(size=13),
+            bgcolor='rgba(255,255,255,0.9)',
+            bordercolor='rgba(0,0,0,0.2)',
+            borderwidth=1
         ),
-        margin=dict(t=100, b=80, l=60, r=60),
-        xaxis=dict(title="<b>Data</b>", title_font=dict(size=12)),
-        yaxis=dict(title=f"<b>{eixo_y or titulo} {unidade}</b>", title_font=dict(size=12))
+        margin=dict(t=120, b=90, l=70, r=70),
+        xaxis=dict(
+            title="<b>Data</b>",
+            title_font=dict(size=13, family="Arial"),
+            gridcolor='rgba(0,0,0,0.1)',
+            showgrid=True
+        ),
+        yaxis=dict(
+            title=f"<b>{eixo_y or titulo} {unidade}</b>",
+            title_font=dict(size=13, family="Arial"),
+            gridcolor='rgba(0,0,0,0.1)',
+            showgrid=True
+        )
     )
 
-    fig.update_xaxes(tickangle=-45, nticks=10)
+    fig.update_xaxes(tickangle=-45, nticks=12, tickfont=dict(size=11))
 
     return fig
 
@@ -369,8 +415,8 @@ def criar_grafico_desvios_baseline(df):
         ),
         specs=[[{"type": "scatter"}, {"type": "scatter"}],
                [{"type": "scatter"}, {"type": "bar"}]],
-        vertical_spacing=0.15,
-        horizontal_spacing=0.12
+        vertical_spacing=0.18,
+        horizontal_spacing=0.15
     )
 
     # Inicializa listas de desvios (apenas dados REAIS)
@@ -425,10 +471,12 @@ def criar_grafico_desvios_baseline(df):
                 y=desvios_moagem,
                 mode='lines+markers',
                 name='<b>Moagem</b>',
-                line=dict(color=CORES['Moagem'], width=3),
-                marker=dict(size=8, symbol='diamond'),
+                line=dict(color=CORES['Moagem'], width=3.5),
+                marker=dict(size=10, symbol='diamond', line=dict(width=1.5, color='white')),
                 hovertemplate='<b>Desvio Moagem Real</b><br>Data: %{x}<br>Desvio: %{y:.2f}%<extra></extra>',
-                showlegend=False
+                showlegend=False,
+                fill='tozeroy',
+                fillcolor=f'rgba(31, 119, 180, 0.15)'
             ),
             row=1, col=1
         )
@@ -440,10 +488,12 @@ def criar_grafico_desvios_baseline(df):
                 y=desvios_atr,
                 mode='lines+markers',
                 name='<b>ATR</b>',
-                line=dict(color=CORES['ATR'], width=3),
-                marker=dict(size=8, symbol='diamond'),
+                line=dict(color=CORES['ATR'], width=3.5),
+                marker=dict(size=10, symbol='diamond', line=dict(width=1.5, color='white')),
                 hovertemplate='<b>Desvio ATR Real</b><br>Data: %{x}<br>Desvio: %{y:.2f}%<extra></extra>',
-                showlegend=False
+                showlegend=False,
+                fill='tozeroy',
+                fillcolor=f'rgba(255, 127, 14, 0.15)'
             ),
             row=1, col=2
         )
@@ -455,10 +505,12 @@ def criar_grafico_desvios_baseline(df):
                 y=desvios_mix,
                 mode='lines+markers',
                 name='<b>MIX</b>',
-                line=dict(color=CORES['MIX'], width=3),
-                marker=dict(size=8, symbol='diamond'),
+                line=dict(color=CORES['MIX'], width=3.5),
+                marker=dict(size=10, symbol='diamond', line=dict(width=1.5, color='white')),
                 hovertemplate='<b>Desvio MIX Real</b><br>Data: %{x}<br>Desvio: %{y:.2f}%<extra></extra>',
-                showlegend=False
+                showlegend=False,
+                fill='tozeroy',
+                fillcolor=f'rgba(44, 160, 44, 0.15)'
             ),
             row=2, col=1
         )
@@ -483,10 +535,12 @@ def criar_grafico_desvios_baseline(df):
                 x=labels,
                 y=desvios_medios,
                 marker_color=cores_barras,
-                opacity=0.85,
-                text=[f'{d:.2f}%' for d in desvios_medios],
+                marker_line=dict(color='white', width=2),
+                opacity=0.9,
+                text=[f'{d:+.2f}%' for d in desvios_medios],
                 textposition='outside',
-                hovertemplate='<b>%{x}</b><br>Desvio Médio: %{y:.2f}%<extra></extra>',
+                textfont=dict(size=13, family="Arial", color='black'),
+                hovertemplate='<b>%{x}</b><br>Desvio Médio: %{y:+.2f}%<extra></extra>',
                 showlegend=False
             ),
             row=2, col=2
@@ -513,20 +567,29 @@ def criar_grafico_desvios_baseline(df):
     # Mas não retorna None para que o gráfico apareça
 
     fig.update_layout(
-        height=700,
+        height=800,
         template='plotly_white',
-        font=dict(family="Arial", size=11),
-        margin=dict(t=80, b=100, l=60, r=60)
+        plot_bgcolor='rgba(255,255,255,1)',
+        paper_bgcolor='rgba(255,255,255,1)',
+        font=dict(family="Arial", size=12),
+        margin=dict(t=120, b=100, l=70, r=70),
+        title=dict(
+            text='<b>Desvios da Baseline (Perfil Ideal)</b>',
+            font=dict(size=18, family="Arial", color="#1f1f1f"),
+            x=0.5,
+            xanchor='center'
+        )
     )
 
-    fig.update_xaxes(tickangle=-45, nticks=8, row=1, col=1)
-    fig.update_xaxes(tickangle=-45, nticks=8, row=1, col=2)
-    fig.update_xaxes(tickangle=-45, nticks=8, row=2, col=1)
+    fig.update_xaxes(tickangle=-45, nticks=10, row=1, col=1, tickfont=dict(size=11), gridcolor='rgba(0,0,0,0.1)')
+    fig.update_xaxes(tickangle=-45, nticks=10, row=1, col=2, tickfont=dict(size=11), gridcolor='rgba(0,0,0,0.1)')
+    fig.update_xaxes(tickangle=-45, nticks=10, row=2, col=1, tickfont=dict(size=11), gridcolor='rgba(0,0,0,0.1)')
+    fig.update_xaxes(tickfont=dict(size=12), row=2, col=2)
 
-    fig.update_yaxes(title="<b>Desvio (%)</b>", row=1, col=1, title_font=dict(size=11))
-    fig.update_yaxes(title="<b>Desvio (%)</b>", row=1, col=2, title_font=dict(size=11))
-    fig.update_yaxes(title="<b>Desvio (%)</b>", row=2, col=1, title_font=dict(size=11))
-    fig.update_yaxes(title="<b>Desvio Médio (%)</b>", row=2, col=2, title_font=dict(size=11))
+    fig.update_yaxes(title="<b>Desvio (%)</b>", row=1, col=1, title_font=dict(size=12), gridcolor='rgba(0,0,0,0.1)')
+    fig.update_yaxes(title="<b>Desvio (%)</b>", row=1, col=2, title_font=dict(size=12), gridcolor='rgba(0,0,0,0.1)')
+    fig.update_yaxes(title="<b>Desvio (%)</b>", row=2, col=1, title_font=dict(size=12), gridcolor='rgba(0,0,0,0.1)')
+    fig.update_yaxes(title="<b>Desvio Médio (%)</b>", row=2, col=2, title_font=dict(size=12), gridcolor='rgba(0,0,0,0.1)')
 
     return fig
 
@@ -649,22 +712,24 @@ def criar_grafico_etanol_detalhado(df):
     )
 
     fig.update_layout(
-        height=800,
+        height=850,
         hovermode='x unified',
         template='plotly_white',
-        font=dict(family="Arial", size=11),
+        plot_bgcolor='rgba(255,255,255,1)',
+        paper_bgcolor='rgba(255,255,255,1)',
+        font=dict(family="Arial", size=12),
         legend=dict(
             orientation="h",
             yanchor="bottom",
             y=1.02,
             xanchor="center",
             x=0.5,
-            font=dict(size=12),
-            bgcolor='rgba(255,255,255,0.0)',
-            bordercolor='rgba(0,0,0,0)',
-            borderwidth=0
+            font=dict(size=13),
+            bgcolor='rgba(255,255,255,0.9)',
+            bordercolor='rgba(0,0,0,0.2)',
+            borderwidth=1
         ),
-        margin=dict(t=100, b=100, l=60, r=60)
+        margin=dict(t=120, b=100, l=70, r=70)
     )
 
     # Configuração de eixos
@@ -799,7 +864,7 @@ def criar_grafico_desvios(df):
         horizontal_spacing=0.12
     )
 
-    # Desvios individuais
+    # Desvios individuais com melhorias visuais
     if desvios_moagem:
         fig.add_trace(
             go.Scatter(
@@ -807,9 +872,11 @@ def criar_grafico_desvios(df):
                 y=desvios_moagem,
                 mode='lines+markers',
                 name='<b>Moagem</b>',
-                line=dict(color=CORES['Moagem'], width=2),
-                marker=dict(size=6),
-                hovertemplate='<b>Desvio Moagem</b><br>Data: %{x}<br>Desvio: %{y:.2f}%<extra></extra>',
+                line=dict(color=CORES['Moagem'], width=3.5),
+                marker=dict(size=10, symbol='diamond', line=dict(width=1.5, color='white')),
+                fill='tozeroy',
+                fillcolor='rgba(31, 119, 180, 0.15)',
+                hovertemplate='<b>Desvio Moagem</b><br>Data: %{x}<br>Desvio: %{y:+.2f}%<extra></extra>',
                 showlegend=False
             ),
             row=1, col=1
@@ -822,9 +889,11 @@ def criar_grafico_desvios(df):
                 y=desvios_atr,
                 mode='lines+markers',
                 name='<b>ATR</b>',
-                line=dict(color=CORES['ATR'], width=2),
-                marker=dict(size=6),
-                hovertemplate='<b>Desvio ATR</b><br>Data: %{x}<br>Desvio: %{y:.2f}%<extra></extra>',
+                line=dict(color=CORES['ATR'], width=3.5),
+                marker=dict(size=10, symbol='diamond', line=dict(width=1.5, color='white')),
+                fill='tozeroy',
+                fillcolor='rgba(255, 127, 14, 0.15)',
+                hovertemplate='<b>Desvio ATR</b><br>Data: %{x}<br>Desvio: %{y:+.2f}%<extra></extra>',
                 showlegend=False
             ),
             row=1, col=2
@@ -837,9 +906,11 @@ def criar_grafico_desvios(df):
                 y=desvios_mix,
                 mode='lines+markers',
                 name='<b>MIX</b>',
-                line=dict(color=CORES['MIX'], width=2),
-                marker=dict(size=6),
-                hovertemplate='<b>Desvio MIX</b><br>Data: %{x}<br>Desvio: %{y:.2f}%<extra></extra>',
+                line=dict(color=CORES['MIX'], width=3.5),
+                marker=dict(size=10, symbol='diamond', line=dict(width=1.5, color='white')),
+                fill='tozeroy',
+                fillcolor='rgba(44, 160, 44, 0.15)',
+                hovertemplate='<b>Desvio MIX</b><br>Data: %{x}<br>Desvio: %{y:+.2f}%<extra></extra>',
                 showlegend=False
             ),
             row=1, col=3
@@ -852,9 +923,11 @@ def criar_grafico_desvios(df):
                 y=desvios_acucar,
                 mode='lines+markers',
                 name='<b>Açúcar</b>',
-                line=dict(color=CORES['Açúcar'], width=2),
-                marker=dict(size=6),
-                hovertemplate='<b>Desvio Açúcar</b><br>Data: %{x}<br>Desvio: %{y:.2f}%<extra></extra>',
+                line=dict(color=CORES['Açúcar'], width=3.5),
+                marker=dict(size=10, symbol='diamond', line=dict(width=1.5, color='white')),
+                fill='tozeroy',
+                fillcolor='rgba(214, 39, 40, 0.15)',
+                hovertemplate='<b>Desvio Açúcar</b><br>Data: %{x}<br>Desvio: %{y:+.2f}%<extra></extra>',
                 showlegend=False
             ),
             row=2, col=1
@@ -867,9 +940,11 @@ def criar_grafico_desvios(df):
                 y=desvios_etanol,
                 mode='lines+markers',
                 name='<b>Etanol</b>',
-                line=dict(color=CORES['Etanol'], width=2),
-                marker=dict(size=6),
-                hovertemplate='<b>Desvio Etanol</b><br>Data: %{x}<br>Desvio: %{y:.2f}%<extra></extra>',
+                line=dict(color=CORES['Etanol'], width=3.5),
+                marker=dict(size=10, symbol='diamond', line=dict(width=1.5, color='white')),
+                fill='tozeroy',
+                fillcolor='rgba(148, 103, 189, 0.15)',
+                hovertemplate='<b>Desvio Etanol</b><br>Data: %{x}<br>Desvio: %{y:+.2f}%<extra></extra>',
                 showlegend=False
             ),
             row=2, col=2
@@ -901,10 +976,12 @@ def criar_grafico_desvios(df):
                 x=labels,
                 y=desvios_medios,
                 marker_color=cores_barras,
-                opacity=0.85,
-                text=[f'{d:.2f}%' for d in desvios_medios],
+                marker_line=dict(color='white', width=2),
+                opacity=0.9,
+                text=[f'{d:+.2f}%' for d in desvios_medios],
                 textposition='outside',
-                hovertemplate='<b>%{x}</b><br>Desvio Médio: %{y:.2f}%<extra></extra>',
+                textfont=dict(size=13, family="Arial", color='black'),
+                hovertemplate='<b>%{x}</b><br>Desvio Médio: %{y:+.2f}%<extra></extra>',
                 showlegend=False
             ),
             row=2, col=3
@@ -917,11 +994,29 @@ def criar_grafico_desvios(df):
                 fig.add_hline(y=0, line_dash="dash", line_color="gray", opacity=0.5, row=row, col=col)
 
     fig.update_layout(
-        height=700,
+        height=900,
         template='plotly_white',
-        font=dict(family="Arial", size=11),
-        margin=dict(t=80, b=100, l=60, r=60)
+        plot_bgcolor='rgba(255,255,255,1)',
+        paper_bgcolor='rgba(255,255,255,1)',
+        font=dict(family="Arial", size=12),
+        margin=dict(t=120, b=100, l=70, r=70),
+        title=dict(
+            text='<b>Análise de Desvios - Real vs Projetado</b>',
+            font=dict(size=18, family="Arial", color="#1f1f1f"),
+            x=0.5,
+            xanchor='center'
+        )
     )
+    
+    # Melhora eixos
+    for row in [1, 2]:
+        for col in [1, 2, 3]:
+            if row == 1 or col < 3:
+                fig.update_xaxes(tickangle=-45, nticks=8, tickfont=dict(size=11), gridcolor='rgba(0,0,0,0.1)', row=row, col=col)
+                fig.update_yaxes(title_font=dict(size=12), gridcolor='rgba(0,0,0,0.1)', row=row, col=col)
+            else:
+                fig.update_xaxes(tickfont=dict(size=12), row=row, col=col)
+                fig.update_yaxes(title_font=dict(size=12), gridcolor='rgba(0,0,0,0.1)', row=row, col=col)
 
     fig.update_xaxes(tickangle=-45, nticks=8, row=1, col=1)
     fig.update_xaxes(tickangle=-45, nticks=8, row=1, col=2)
@@ -1112,11 +1207,19 @@ def criar_grafico_precos_real_vs_simulado(df):
             )
 
     fig.update_layout(
-        height=800,
+        height=850,
         hovermode='x unified',
         template='plotly_white',
-        font=dict(family="Arial", size=11),
-        margin=dict(t=100, b=100, l=60, r=60)
+        plot_bgcolor='rgba(255,255,255,1)',
+        paper_bgcolor='rgba(255,255,255,1)',
+        font=dict(family="Arial", size=12),
+        margin=dict(t=120, b=100, l=70, r=70),
+        title=dict(
+            text='<b>Preços - Real vs Simulado</b>',
+            font=dict(size=18, family="Arial", color="#1f1f1f"),
+            x=0.5,
+            xanchor='center'
+        )
     )
 
     fig.update_xaxes(title="<b>Data</b>", row=1, col=1, title_font=dict(size=12), tickangle=-45, nticks=8)
@@ -1134,92 +1237,205 @@ def criar_grafico_precos_real_vs_simulado(df):
 
 def criar_grafico_analise_estatistica(df):
     """
-    Cria gráfico com análises estatísticas avançadas.
+    Cria gráfico com análises estatísticas avançadas e profundas.
     """
     fig = make_subplots(
-        rows=2, cols=2,
+        rows=3, cols=2,
         subplot_titles=(
             '<b>Distribuição de Moagem</b>',
             '<b>Distribuição de ATR</b>',
             '<b>Distribuição de MIX</b>',
-            '<b>Correlação Produção vs Preços</b>'
+            '<b>Box Plot - Parâmetros de Safra</b>',
+            '<b>Correlação Produção vs Preços</b>',
+            '<b>Análise de Tendências</b>'
         ),
         specs=[[{"type": "histogram"}, {"type": "histogram"}],
-               [{"type": "histogram"}, {"type": "scatter"}]],
-        vertical_spacing=0.18,
-        horizontal_spacing=0.12
+               [{"type": "histogram"}, {"type": "box"}],
+               [{"type": "scatter"}, {"type": "scatter"}]],
+        vertical_spacing=0.15,
+        horizontal_spacing=0.12,
+        row_heights=[0.3, 0.3, 0.4]
     )
 
-    # Histogramas
+    # Histograma Moagem com linha de média
+    media_moagem = df['Moagem'].mean()
+    std_moagem = df['Moagem'].std()
     fig.add_trace(
         go.Histogram(
             x=df['Moagem'],
             name='<b>Moagem</b>',
             marker_color=CORES['Moagem'],
-            opacity=0.7,
+            opacity=0.75,
             nbinsx=20,
             hovertemplate='<b>Moagem</b><br>Valor: %{x:,.0f} ton<br>Frequência: %{y}<extra></extra>',
             showlegend=False
         ),
         row=1, col=1
     )
+    fig.add_vline(x=media_moagem, line_dash="dash", line_color="red", 
+                  annotation_text=f"Média: {media_moagem:,.0f}", row=1, col=1)
 
+    # Histograma ATR com linha de média
+    media_atr = df['ATR'].mean()
+    std_atr = df['ATR'].std()
     fig.add_trace(
         go.Histogram(
             x=df['ATR'],
             name='<b>ATR</b>',
             marker_color=CORES['ATR'],
-            opacity=0.7,
+            opacity=0.75,
             nbinsx=20,
             hovertemplate='<b>ATR</b><br>Valor: %{x:.2f} kg/t<br>Frequência: %{y}<extra></extra>',
             showlegend=False
         ),
         row=1, col=2
     )
+    fig.add_vline(x=media_atr, line_dash="dash", line_color="red",
+                  annotation_text=f"Média: {media_atr:.2f}", row=1, col=2)
 
+    # Histograma MIX com linha de média
+    media_mix = df['MIX'].mean()
+    std_mix = df['MIX'].std()
     fig.add_trace(
         go.Histogram(
             x=df['MIX'],
             name='<b>MIX</b>',
             marker_color=CORES['MIX'],
-            opacity=0.7,
+            opacity=0.75,
             nbinsx=20,
             hovertemplate='<b>MIX</b><br>Valor: %{x:.2f}%<br>Frequência: %{y}<extra></extra>',
             showlegend=False
         ),
         row=2, col=1
     )
+    fig.add_vline(x=media_mix, line_dash="dash", line_color="red",
+                  annotation_text=f"Média: {media_mix:.2f}%", row=2, col=1)
 
-    # Correlação Produção vs Preços
+    # Box Plot comparativo
     fig.add_trace(
-        go.Scatter(
-            x=df['Açúcar (t)'],
-            y=df['NY11_cents'],
-            mode='markers',
-            name='<b>NY11 vs Açúcar</b>',
-            marker=dict(color=CORES['NY11'], size=8, opacity=0.6),
-            hovertemplate='<b>NY11 vs Açúcar</b><br>Açúcar: %{x:,.0f} t<br>NY11: %{y:.2f} USc/lb<extra></extra>',
+        go.Box(
+            y=df['Moagem'],
+            name='Moagem',
+            marker_color=CORES['Moagem'],
+            boxmean='sd',
+            hovertemplate='<b>Moagem</b><br>%{y:,.0f} ton<extra></extra>',
+            showlegend=False
+        ),
+        row=2, col=2
+    )
+    fig.add_trace(
+        go.Box(
+            y=df['ATR'],
+            name='ATR',
+            marker_color=CORES['ATR'],
+            boxmean='sd',
+            hovertemplate='<b>ATR</b><br>%{y:.2f} kg/t<extra></extra>',
+            showlegend=False
+        ),
+        row=2, col=2
+    )
+    fig.add_trace(
+        go.Box(
+            y=df['MIX'],
+            name='MIX',
+            marker_color=CORES['MIX'],
+            boxmean='sd',
+            hovertemplate='<b>MIX</b><br>%{y:.2f}%<extra></extra>',
             showlegend=False
         ),
         row=2, col=2
     )
 
+    # Correlação Produção vs Preços com linha de tendência
+    if 'Açúcar (t)' in df.columns and 'NY11_cents' in df.columns:
+        # Calcula correlação
+        correlacao = df['Açúcar (t)'].corr(df['NY11_cents'])
+        
+        fig.add_trace(
+            go.Scatter(
+                x=df['Açúcar (t)'],
+                y=df['NY11_cents'],
+                mode='markers',
+                name='<b>NY11 vs Açúcar</b>',
+                marker=dict(color=CORES['NY11'], size=10, opacity=0.7, 
+                           line=dict(width=1, color='white')),
+                hovertemplate='<b>NY11 vs Açúcar</b><br>Açúcar: %{x:,.0f} t<br>NY11: %{y:.2f} USc/lb<extra></extra>',
+                showlegend=False
+            ),
+            row=3, col=1
+        )
+        
+        # Adiciona linha de tendência
+        z = np.polyfit(df['Açúcar (t)'], df['NY11_cents'], 1)
+        p = np.poly1d(z)
+        fig.add_trace(
+            go.Scatter(
+                x=df['Açúcar (t)'],
+                y=p(df['Açúcar (t)']),
+                mode='lines',
+                name=f'Tendência (r={correlacao:.3f})',
+                line=dict(color='red', width=3, dash='dash'),
+                hovertemplate=f'<b>Tendência</b><br>Correlação: {correlacao:.3f}<extra></extra>',
+                showlegend=False
+            ),
+            row=3, col=1
+        )
+
+    # Análise de tendências temporais
+    if 'Data' in df.columns:
+        fig.add_trace(
+            go.Scatter(
+                x=df['Data'],
+                y=df['Moagem'].rolling(window=3, center=True).mean() if len(df) > 3 else df['Moagem'],
+                name='<b>Tendência Moagem</b>',
+                line=dict(color=CORES['Moagem'], width=3),
+                mode='lines',
+                hovertemplate='<b>Tendência Moagem</b><br>Data: %{x}<br>Média Móvel: %{y:,.0f} ton<extra></extra>',
+                showlegend=False
+            ),
+            row=3, col=2
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=df['Data'],
+                y=df['ATR'].rolling(window=3, center=True).mean() if len(df) > 3 else df['ATR'],
+                name='<b>Tendência ATR</b>',
+                line=dict(color=CORES['ATR'], width=3),
+                mode='lines',
+                hovertemplate='<b>Tendência ATR</b><br>Data: %{x}<br>Média Móvel: %{y:.2f} kg/t<extra></extra>',
+                showlegend=False
+            ),
+            row=3, col=2
+        )
+
     fig.update_layout(
-        height=800,
+        height=1000,
         template='plotly_white',
-        font=dict(family="Arial", size=11),
-        margin=dict(t=100, b=100, l=60, r=60)
+        plot_bgcolor='rgba(255,255,255,1)',
+        paper_bgcolor='rgba(255,255,255,1)',
+        font=dict(family="Arial", size=12),
+        margin=dict(t=120, b=100, l=70, r=70),
+        title=dict(
+            text='<b>Análise Estatística Avançada</b>',
+            font=dict(size=20, family="Arial", color="#1f1f1f"),
+            x=0.5,
+            xanchor='center'
+        )
     )
 
-    fig.update_xaxes(title="<b>Moagem (ton)</b>", row=1, col=1, title_font=dict(size=11))
-    fig.update_xaxes(title="<b>ATR (kg/t)</b>", row=1, col=2, title_font=dict(size=11))
-    fig.update_xaxes(title="<b>MIX (%)</b>", row=2, col=1, title_font=dict(size=11))
-    fig.update_xaxes(title="<b>Açúcar (t)</b>", row=2, col=2, title_font=dict(size=11))
+    fig.update_xaxes(title="<b>Moagem (ton)</b>", row=1, col=1, title_font=dict(size=12), gridcolor='rgba(0,0,0,0.1)')
+    fig.update_xaxes(title="<b>ATR (kg/t)</b>", row=1, col=2, title_font=dict(size=12), gridcolor='rgba(0,0,0,0.1)')
+    fig.update_xaxes(title="<b>MIX (%)</b>", row=2, col=1, title_font=dict(size=12), gridcolor='rgba(0,0,0,0.1)')
+    fig.update_xaxes(title="<b>Parâmetro</b>", row=2, col=2, title_font=dict(size=12))
+    fig.update_xaxes(title="<b>Açúcar (t)</b>", row=3, col=1, title_font=dict(size=12), gridcolor='rgba(0,0,0,0.1)')
+    fig.update_xaxes(title="<b>Data</b>", row=3, col=2, title_font=dict(size=12), gridcolor='rgba(0,0,0,0.1)', tickangle=-45)
 
-    fig.update_yaxes(title="<b>Frequência</b>", row=1, col=1, title_font=dict(size=11))
-    fig.update_yaxes(title="<b>Frequência</b>", row=1, col=2, title_font=dict(size=11))
-    fig.update_yaxes(title="<b>Frequência</b>", row=2, col=1, title_font=dict(size=11))
-    fig.update_yaxes(title="<b>NY11 (USc/lb)</b>", row=2, col=2, title_font=dict(size=11))
+    fig.update_yaxes(title="<b>Frequência</b>", row=1, col=1, title_font=dict(size=12), gridcolor='rgba(0,0,0,0.1)')
+    fig.update_yaxes(title="<b>Frequência</b>", row=1, col=2, title_font=dict(size=12), gridcolor='rgba(0,0,0,0.1)')
+    fig.update_yaxes(title="<b>Frequência</b>", row=2, col=1, title_font=dict(size=12), gridcolor='rgba(0,0,0,0.1)')
+    fig.update_yaxes(title="<b>Valor</b>", row=2, col=2, title_font=dict(size=12), gridcolor='rgba(0,0,0,0.1)')
+    fig.update_yaxes(title="<b>NY11 (USc/lb)</b>", row=3, col=1, title_font=dict(size=12), gridcolor='rgba(0,0,0,0.1)')
+    fig.update_yaxes(title="<b>Valor</b>", row=3, col=2, title_font=dict(size=12), gridcolor='rgba(0,0,0,0.1)')
 
     return fig
 
