@@ -5,8 +5,8 @@ from pathlib import Path
 
 # Caminhos dos arquivos de dados (ajuste conforme necessário)
 DATA_FILES = {
-    "Historico_safra": Path("dados/historico_safra.xlsx"),  # Ajuste o caminho conforme necessário
-    "Volatilidades": Path("dados/volatilidades.xlsx"),      # Ajuste o caminho conforme necessário
+    "Historico_safra": Path("Data_base/Historico_safra.xlsx"),  # Ajuste o caminho conforme necessário
+    "Volatilidades": Path("Data_base/Volatilidades.xlsx"),      # Ajuste o caminho conforme necessário
 }
 
 # Volatilidades padrão (caso não tenha arquivo)
@@ -64,5 +64,30 @@ PERFIL_MIX = [
     0.96, 1.11, 1.19, 1.19, 1.22, 1.24, 1.25, 1.26, 1.24, 1.24, 1.23, 1.19,
     1.16, 1.13, 1.11, 1.02, 0.87, 0.73, 0.72, 0.65, 0.57, 0.38, 0.56, 0.78
 ]
+# ============================================================================
+
+# ============================================================================
+# VOLATILIDADES DE ETANOL - PRODUÇÃO
+# ============================================================================
+# Volatilidades relativas (percentuais) para simulação de produção de etanol
+# Valores baseados em dados históricos de variação quinzenal
+VOLATILIDADE_ETANOL_ANIDRO_CANA = 0.15      # 15% de volatilidade
+VOLATILIDADE_ETANOL_HIDRATADO_CANA = 0.18   # 18% de volatilidade
+VOLATILIDADE_ETANOL_ANIDRO_MILHO = 0.20     # 20% de volatilidade
+VOLATILIDADE_ETANOL_HIDRATADO_MILHO = 0.22  # 22% de volatilidade
+
+# Desvios padrão absolutos (m³) para valores pequenos
+DESVIO_PADRAO_ETANOL_ANIDRO_CANA = 1000.0      # m³
+DESVIO_PADRAO_ETANOL_HIDRATADO_CANA = 1200.0   # m³
+DESVIO_PADRAO_ETANOL_ANIDRO_MILHO = 500.0      # m³
+DESVIO_PADRAO_ETANOL_HIDRATADO_MILHO = 600.0   # m³
+# ============================================================================
+
+# ============================================================================
+# VOLATILIDADES DE ETANOL - PREÇOS
+# ============================================================================
+# Volatilidades para simulação de preços de etanol
+VOLATILIDADE_ETANOL_ANIDRO = 0.25      # 25% de volatilidade
+VOLATILIDADE_ETANOL_HIDRATADO = 0.28   # 28% de volatilidade
 # ============================================================================
 

@@ -89,6 +89,112 @@ def calcular_producao_quinzenal(moagem, atr, mix):
     return acucar, etanol
 
 
+def calcular_etanol_detalhado(etanol_total_cana, quinzena, n_quinzenas_total):
+    """
+    Calcula distribuição de etanol de cana (anidro e hidratado) baseado no perfil da safra.
+
+    Regra:
+    - Anidro começa em 20% e aumenta 2 pontos percentuais até chegar em 44%
+    - Depois diminui 2 pontos percentuais
+    - Hidratado = Total - Anidro
+    """
+    # Calcula percentual de anidro baseado na quinzena
+    # Aproximadamente no meio da safra (quinzena 12 de 24) atinge 44%
+    meio_safra = n_quinzenas_total / 2
+
+    if quinzena <= meio_safra:
+        # Fase crescente: 20% até 44%
+        pct_anidro = 0.20 + (quinzena - 1) * 0.02
+        pct_anidro = min(pct_anidro, 0.44)
+    else:
+        # Fase decrescente: diminui 2 pontos percentuais
+        pct_anidro = 0.44 - (quinzena - meio_safra) * 0.02
+        pct_anidro = max(pct_anidro, 0.20)
+
+    etanol_anidro_cana = etanol_total_cana * pct_anidro
+    etanol_hidratado_cana = etanol_total_cana - etanol_anidro_cana
+
+    return etanol_anidro_cana, etanol_hidratado_cana
+
+
+def calcular_etanol_milho(etanol_total, quinzena, n_quinzenas_total):
+    """
+    Calcula produção de etanol de milho (30% do total) e distribui entre anidro e hidratado.
+    Usa as mesmas proporções do etanol de cana.
+    """
+    PERCENTUAL_ETANOL_MILHO = 0.30  # 30% do total de etanol é de milho
+    etanol_total_milho = etanol_total * PERCENTUAL_ETANOL_MILHO
+    etanol_anidro_milho, etanol_hidratado_milho = calcular_etanol_detalhado(
+        etanol_total_milho, quinzena, n_quinzenas_total
+    )
+    return etanol_anidro_milho, etanol_hidratado_milho
+
+
+def simular_producao_etanol_com_volatilidade(etanol_base, tipo, seed=None):
+    """
+    Simula produção de etanol adicionando ruído baseado em volatilidade e desvio padrão.
+
+    Args:
+        etanol_base: Valor base da produção (m³)
+        tipo: Tipo de etanol ('anidro_cana', 'hidratado_cana', 'anidro_milho', 'hidratado_milho')
+        seed: Semente para reprodutibilidade (opcional)
+
+    Returns:
+        float: Valor simulado com ruído
+    """
+    try:
+        from Dados_base import (
+            VOLATILIDADE_ETANOL_ANIDRO_CANA,
+            VOLATILIDADE_ETANOL_HIDRATADO_CANA,
+            VOLATILIDADE_ETANOL_ANIDRO_MILHO,
+            VOLATILIDADE_ETANOL_HIDRATADO_MILHO,
+            DESVIO_PADRAO_ETANOL_ANIDRO_CANA,
+            DESVIO_PADRAO_ETANOL_HIDRATADO_CANA,
+            DESVIO_PADRAO_ETANOL_ANIDRO_MILHO,
+            DESVIO_PADRAO_ETANOL_HIDRATADO_MILHO
+        )
+    except ImportError:
+        # Se não conseguir importar, retorna valor base sem simulação
+        return etanol_base
+
+    if etanol_base <= 0:
+        return 0.0
+
+    rng = np.random.default_rng(seed)
+
+    # Seleciona parâmetros baseado no tipo
+    if tipo == 'anidro_cana':
+        volatilidade = VOLATILIDADE_ETANOL_ANIDRO_CANA
+        desvio_padrao = DESVIO_PADRAO_ETANOL_ANIDRO_CANA
+    elif tipo == 'hidratado_cana':
+        volatilidade = VOLATILIDADE_ETANOL_HIDRATADO_CANA
+        desvio_padrao = DESVIO_PADRAO_ETANOL_HIDRATADO_CANA
+    elif tipo == 'anidro_milho':
+        volatilidade = VOLATILIDADE_ETANOL_ANIDRO_MILHO
+        desvio_padrao = DESVIO_PADRAO_ETANOL_ANIDRO_MILHO
+    elif tipo == 'hidratado_milho':
+        volatilidade = VOLATILIDADE_ETANOL_HIDRATADO_MILHO
+        desvio_padrao = DESVIO_PADRAO_ETANOL_HIDRATADO_MILHO
+    else:
+        # Tipo desconhecido, retorna valor base
+        return etanol_base
+
+    # Adiciona ruído usando distribuição normal
+    # Usa desvio padrão absoluto ou volatilidade relativa, o que for mais apropriado
+    # Para valores grandes, usa volatilidade relativa; para valores pequenos, usa desvio padrão
+    if etanol_base > desvio_padrao * 2:
+        # Usa volatilidade relativa (percentual)
+        ruido = rng.normal(0, volatilidade)
+        etanol_simulado = etanol_base * (1 + ruido)
+    else:
+        # Usa desvio padrão absoluto
+        ruido = rng.normal(0, desvio_padrao)
+        etanol_simulado = etanol_base + ruido
+
+    # Garante que não seja negativo
+    return max(0.0, etanol_simulado)
+
+
 # ============================================================================
 # FUNÇÕES DE CONVERSÃO DE PREÇOS (ETANOL E AÇÚCAR)
 # ============================================================================
@@ -680,37 +786,142 @@ except:
 # ============ SIDEBAR ============
 st.sidebar.header("📊 Parâmetros da Safra")
 
-moagem = st.sidebar.number_input("Moagem total (ton)", value=600_000_000, step=10_000_000)
-atr = st.sidebar.number_input("ATR médio (kg/t)", value=135.0, step=1.0, format="%.1f")
-mix = st.sidebar.number_input("Mix açúcar (%)", value=48.0, step=1.0, format="%.1f")
+# Inicializa parâmetros de simulação no session_state se não existirem
+if 'analise_moagem' not in st.session_state:
+    st.session_state.analise_moagem = 600_000_000
+if 'analise_atr' not in st.session_state:
+    st.session_state.analise_atr = 135.0
+if 'analise_mix' not in st.session_state:
+    st.session_state.analise_mix = 48.0
+if 'analise_n_quinz' not in st.session_state:
+    st.session_state.analise_n_quinz = 24
+if 'analise_data_start' not in st.session_state:
+    st.session_state.analise_data_start = date(date.today().year, 4, 1)
+if 'analise_ny11_inicial' not in st.session_state:
+    st.session_state.analise_ny11_inicial = 14.90
+if 'analise_usd_inicial' not in st.session_state:
+    st.session_state.analise_usd_inicial = 4.90
+if 'analise_etanol_inicial' not in st.session_state:
+    st.session_state.analise_etanol_inicial = 2500.0
+if 'analise_preco_ref' not in st.session_state:
+    st.session_state.analise_preco_ref = 15.0
+if 'analise_sensibilidade' not in st.session_state:
+    st.session_state.analise_sensibilidade = 10.0
+if 'analise_usar_paridade' not in st.session_state:
+    st.session_state.analise_usar_paridade = False
+
+moagem = st.sidebar.number_input(
+    "Moagem total (ton)",
+    value=st.session_state.analise_moagem,
+    step=10_000_000,
+    key="input_analise_moagem"
+)
+atr = st.sidebar.number_input(
+    "ATR médio (kg/t)",
+    value=st.session_state.analise_atr,
+    step=1.0,
+    format="%.1f",
+    key="input_analise_atr"
+)
+mix = st.sidebar.number_input(
+    "Mix açúcar (%)",
+    value=st.session_state.analise_mix,
+    step=1.0,
+    format="%.1f",
+    key="input_analise_mix"
+)
+
+# Salva valores no session_state quando alterados
+st.session_state.analise_moagem = moagem
+st.session_state.analise_atr = atr
+st.session_state.analise_mix = mix
 
 st.sidebar.divider()
 
 st.sidebar.subheader("💰 Preços Iniciais")
 st.sidebar.caption("💡 **Preço inicial** = o preço REAL que você acredita que vai começar a safra")
-ny11_inicial = st.sidebar.number_input("NY11 inicial (USc/lb)", value=14.90, step=0.10, format="%.2f",
-                                       help="Preço REAL de início da safra")
-usd_inicial = st.sidebar.number_input("USD/BRL inicial", value=4.90, step=0.01, format="%.2f")
-etanol_inicial = st.sidebar.number_input("Etanol inicial (R$/m³)", value=2500.0, step=50.0, format="%.0f")
+ny11_inicial = st.sidebar.number_input(
+    "NY11 inicial (USc/lb)",
+    value=st.session_state.analise_ny11_inicial,
+    step=0.10,
+    format="%.2f",
+    help="Preço REAL de início da safra",
+    key="input_analise_ny11"
+)
+usd_inicial = st.sidebar.number_input(
+    "USD/BRL inicial",
+    value=st.session_state.analise_usd_inicial,
+    step=0.01,
+    format="%.2f",
+    key="input_analise_usd"
+)
+etanol_inicial = st.sidebar.number_input(
+    "Etanol inicial (R$/m³)",
+    value=st.session_state.analise_etanol_inicial,
+    step=50.0,
+    format="%.0f",
+    key="input_analise_etanol"
+)
+
+# Salva valores no session_state quando alterados
+st.session_state.analise_ny11_inicial = ny11_inicial
+st.session_state.analise_usd_inicial = usd_inicial
+st.session_state.analise_etanol_inicial = etanol_inicial
 
 st.sidebar.divider()
 
 st.sidebar.subheader("⚙️ Simulação")
-n_quinz = st.sidebar.number_input("Nº de quinzenas", value=24, min_value=4, max_value=24, step=1)
-data_start = st.sidebar.date_input("Início da safra", value=date(date.today().year, 4, 1))
+n_quinz = st.sidebar.number_input(
+    "Nº de quinzenas",
+    value=st.session_state.analise_n_quinz,
+    min_value=4,
+    max_value=24,
+    step=1,
+    key="input_analise_n_quinz"
+)
+data_start = st.sidebar.date_input(
+    "Início da safra",
+    value=st.session_state.analise_data_start,
+    key="input_analise_data_start"
+)
+
+# Salva valores no session_state quando alterados
+st.session_state.analise_n_quinz = n_quinz
+st.session_state.analise_data_start = data_start
 
 with st.sidebar.expander("🔧 Parâmetros Avançados", expanded=False):
     st.caption("⚙️ Ajustes finos da simulação (opcional)")
     st.markdown("**📊 Preço Referência NY11**")
     st.caption("Parâmetro de CALIBRAÇÃO para classificar se preço inicial está 'alto' ou 'baixo'")
-    preco_ref = st.number_input("Preço referência NY11 (USc/lb)", value=15.0, step=0.5, format="%.1f")
+    preco_ref = st.number_input(
+        "Preço referência NY11 (USc/lb)",
+        value=st.session_state.analise_preco_ref,
+        step=0.5,
+        format="%.1f",
+        key="input_analise_preco_ref"
+    )
     
     st.markdown("**📈 Sensibilidade Oferta → Preço**")
-    sensibilidade = st.slider("Sensibilidade oferta → preço (%)", 0.0, 30.0, 10.0, 1.0)
+    sensibilidade = st.slider(
+        "Sensibilidade oferta → preço (%)",
+        0.0, 30.0,
+        st.session_state.analise_sensibilidade,
+        1.0,
+        key="input_analise_sensibilidade"
+    )
     
     st.markdown("**🔄 Paridade Etanol/Açúcar**")
-    usar_paridade = st.checkbox("Usar paridade etanol/açúcar", value=False,
-                                help="Ajusta mix dinamicamente baseado na atratividade relativa")
+    usar_paridade = st.checkbox(
+        "Usar paridade etanol/açúcar",
+        value=st.session_state.analise_usar_paridade,
+        help="Ajusta mix dinamicamente baseado na atratividade relativa",
+        key="input_analise_usar_paridade"
+    )
+    
+    # Salva valores no session_state quando alterados
+    st.session_state.analise_preco_ref = preco_ref
+    st.session_state.analise_sensibilidade = sensibilidade
+    st.session_state.analise_usar_paridade = usar_paridade
 
 # Choques de SAFRA (permite múltiplos choques por quinzena)
 criar_widget_choques("🌾 Choques de Safra", "Simule eventos que afetam a PRODUÇÃO (moagem, ATR, mix)",
@@ -753,6 +964,10 @@ df_completo = df_base.merge(df_precos, on="Quinzena")
 # Calcula produção quinzenal de açúcar e etanol
 producao_acucar_quinzenal = []
 producao_etanol_quinzenal = []
+producao_etanol_anidro_cana = []
+producao_etanol_hidratado_cana = []
+producao_etanol_anidro_milho = []
+producao_etanol_hidratado_milho = []
 
 for i, row in df_completo.iterrows():
     # Usa mix ajustado por paridade se disponível, senão usa o mix original
@@ -764,10 +979,56 @@ for i, row in df_completo.iterrows():
     acucar_q, etanol_q = calcular_producao_quinzenal(row["Moagem"], row["ATR"], mix_quinzena)
     producao_acucar_quinzenal.append(acucar_q)
     producao_etanol_quinzenal.append(etanol_q)
+    
+    # Calcula etanol detalhado (cana e milho)
+    quinzena = row["Quinzena"]
+    etanol_anidro_cana_base, etanol_hidratado_cana_base = calcular_etanol_detalhado(
+        etanol_q, quinzena, int(n_quinz)
+    )
+    etanol_anidro_milho_base, etanol_hidratado_milho_base = calcular_etanol_milho(
+        etanol_q, quinzena, int(n_quinz)
+    )
+    
+    # Aplica simulação com volatilidade
+    etanol_anidro_cana = simular_producao_etanol_com_volatilidade(
+        etanol_anidro_cana_base, 'anidro_cana', seed=42 + quinzena
+    )
+    etanol_hidratado_cana = simular_producao_etanol_com_volatilidade(
+        etanol_hidratado_cana_base, 'hidratado_cana', seed=42 + quinzena + 1000
+    )
+    etanol_anidro_milho = simular_producao_etanol_com_volatilidade(
+        etanol_anidro_milho_base, 'anidro_milho', seed=42 + quinzena + 2000
+    )
+    etanol_hidratado_milho = simular_producao_etanol_com_volatilidade(
+        etanol_hidratado_milho_base, 'hidratado_milho', seed=42 + quinzena + 3000
+    )
+    
+    producao_etanol_anidro_cana.append(etanol_anidro_cana)
+    producao_etanol_hidratado_cana.append(etanol_hidratado_cana)
+    producao_etanol_anidro_milho.append(etanol_anidro_milho)
+    producao_etanol_hidratado_milho.append(etanol_hidratado_milho)
 
 # Adiciona colunas de produção quinzenal ao DataFrame
 df_completo["Açúcar (t)"] = producao_acucar_quinzenal
 df_completo["Etanol (m³)"] = producao_etanol_quinzenal
+df_completo["Etanol Anidro Cana (m³)"] = producao_etanol_anidro_cana
+df_completo["Etanol Hidratado Cana (m³)"] = producao_etanol_hidratado_cana
+df_completo["Etanol Anidro Milho (m³)"] = producao_etanol_anidro_milho
+df_completo["Etanol Hidratado Milho (m³)"] = producao_etanol_hidratado_milho
+
+# Calcula etanol total quinzena (soma de todos os tipos)
+df_completo["Etanol Total Quinzena (m³)"] = (
+    df_completo["Etanol Anidro Cana (m³)"] +
+    df_completo["Etanol Hidratado Cana (m³)"] +
+    df_completo["Etanol Anidro Milho (m³)"] +
+    df_completo["Etanol Hidratado Milho (m³)"]
+)
+
+# Adiciona colunas acumuladas
+df_completo["Açúcar Acumulado (t)"] = df_completo["Açúcar (t)"].cumsum()
+df_completo["Etanol Acumulado (m³)"] = df_completo["Etanol (m³)"].cumsum()
+df_completo["Etanol Total Acumulado (m³)"] = df_completo["Etanol Total Quinzena (m³)"].cumsum()
+df_completo["Moagem Acumulada (ton)"] = df_completo["Moagem"].cumsum()
 
 ny11_final = df_precos.iloc[-1]["NY11_cents"]
 usd_final = df_precos.iloc[-1]["USD_BRL"]
@@ -782,22 +1043,45 @@ variacao_pct = (variacao_ny11 / ny11_inicial) * 100
 st.divider()
 st.subheader("📈 Resultados da Simulação")
 
+# Calcula totais de cada tipo de etanol
+etanol_anidro_cana_total = df_completo["Etanol Anidro Cana (m³)"].sum()
+etanol_hidratado_cana_total = df_completo["Etanol Hidratado Cana (m³)"].sum()
+etanol_anidro_milho_total = df_completo["Etanol Anidro Milho (m³)"].sum()
+etanol_hidratado_milho_total = df_completo["Etanol Hidratado Milho (m³)"].sum()
+etanol_total_quinzena = df_completo["Etanol Total Quinzena (m³)"].sum()
+
 col1, col2, col3, col4 = st.columns(4)
 
 col1.metric("Açúcar estimado", fmt_br(acucar_total, 0) + " t")
-col2.metric("Etanol estimado", fmt_br(etanol_total, 0) + " m³")
-col3.metric("Preço final NY11", f"{ny11_final:.2f} USc/lb",
+col2.metric("Etanol de Cana", fmt_br(etanol_total, 0) + " m³")
+col3.metric("Etanol Total (Cana + Milho)", fmt_br(etanol_total_quinzena, 0) + " m³")
+col4.metric("Preço final NY11", f"{ny11_final:.2f} USc/lb",
            delta=f"{variacao_ny11:+.2f} ({variacao_pct:+.2f}%)",
            delta_color="inverse" if variacao_ny11 < 0 else "normal")
-col4.metric("Preço final (R$/saca)", fmt_br(preco_saca_final, 2))
 
 st.write("")
-col5, col6 = st.columns(2)
-col5.metric("Tendência esperada", direcao.upper(), delta=f"{variacao_pct:+.2f}%",
-           delta_color="inverse" if variacao_ny11 < 0 else "normal")
+col5, col6, col7, col8 = st.columns(4)
+col5.metric("Preço final (R$/saca)", fmt_br(preco_saca_final, 2))
 col6.metric("USD/BRL final", f"{usd_final:.2f}", 
            delta=f"{usd_final - usd_inicial:+.2f}",
            delta_color="inverse" if (usd_final - usd_inicial) < 0 else "normal")
+col7.metric("Tendência esperada", direcao.upper(), delta=f"{variacao_pct:+.2f}%",
+           delta_color="inverse" if variacao_ny11 < 0 else "normal")
+col8.metric("Moagem Total", fmt_br(df_completo["Moagem"].sum(), 0) + " ton")
+
+st.divider()
+st.subheader("🍯 Detalhamento de Etanol")
+
+col_et1, col_et2, col_et3, col_et4 = st.columns(4)
+col_et1.metric("Etanol Anidro Cana", fmt_br(etanol_anidro_cana_total, 0) + " m³")
+col_et2.metric("Etanol Hidratado Cana", fmt_br(etanol_hidratado_cana_total, 0) + " m³")
+col_et3.metric("Etanol Anidro Milho", fmt_br(etanol_anidro_milho_total, 0) + " m³")
+col_et4.metric("Etanol Hidratado Milho", fmt_br(etanol_hidratado_milho_total, 0) + " m³")
+
+st.write("")
+col_et5, col_et6 = st.columns(2)
+col_et5.metric("Etanol Total Cana", fmt_br(etanol_total, 0) + " m³")
+col_et6.metric("Etanol Total Milho", fmt_br(etanol_anidro_milho_total + etanol_hidratado_milho_total, 0) + " m³")
 
 # Comparação se houver choques de safra
 if choques_safra:
@@ -865,13 +1149,22 @@ st.subheader("📅 Evolução Quinzenal")
 # Formata DataFrame para exibição
 colunas_formatacao = {
     "Moagem": (0, fmt_br),
+    "Moagem Acumulada (ton)": (0, fmt_br),
     "ATR": (2, fmt_br),
     "MIX": (2, fmt_br),
     "NY11_cents": (2, lambda x: f"{x:.2f}"),
     "Etanol_R$m3": (0, fmt_br),
     "USD_BRL": (2, lambda x: f"{x:.2f}"),
     "Açúcar (t)": (0, fmt_br),
-    "Etanol (m³)": (0, fmt_br)
+    "Açúcar Acumulado (t)": (0, fmt_br),
+    "Etanol (m³)": (0, fmt_br),
+    "Etanol Acumulado (m³)": (0, fmt_br),
+    "Etanol Anidro Cana (m³)": (0, fmt_br),
+    "Etanol Hidratado Cana (m³)": (0, fmt_br),
+    "Etanol Anidro Milho (m³)": (0, fmt_br),
+    "Etanol Hidratado Milho (m³)": (0, fmt_br),
+    "Etanol Total Quinzena (m³)": (0, fmt_br),
+    "Etanol Total Acumulado (m³)": (0, fmt_br)
 }
 
 df_mostrar = df_completo.copy()
@@ -879,7 +1172,23 @@ for coluna, (casas, func) in colunas_formatacao.items():
     if coluna in df_mostrar.columns:
         df_mostrar[coluna] = df_mostrar[coluna].apply(func)
 
-st.dataframe(df_mostrar[["Quinzena", "Data", "Moagem", "ATR", "MIX", "Açúcar (t)", "Etanol (m³)", "NY11_cents", "Etanol_R$m3", "USD_BRL"]],
+# Seleciona colunas para exibição organizadas
+colunas_exibir = [
+    "Quinzena", "Data",
+    "Moagem", "Moagem Acumulada (ton)",
+    "ATR", "MIX",
+    "Açúcar (t)", "Açúcar Acumulado (t)",
+    "Etanol (m³)", "Etanol Acumulado (m³)",
+    "Etanol Anidro Cana (m³)", "Etanol Hidratado Cana (m³)",
+    "Etanol Anidro Milho (m³)", "Etanol Hidratado Milho (m³)",
+    "Etanol Total Quinzena (m³)", "Etanol Total Acumulado (m³)",
+    "NY11_cents", "Etanol_R$m3", "USD_BRL"
+]
+
+# Filtra apenas colunas que existem no DataFrame
+colunas_exibir = [col for col in colunas_exibir if col in df_mostrar.columns]
+
+st.dataframe(df_mostrar[colunas_exibir],
              use_container_width=True, height=400, hide_index=True)
 
 # Análise final

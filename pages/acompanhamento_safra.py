@@ -1098,6 +1098,15 @@ def gerar_projecao_quinzenal(moagem_total, atr_medio, mix_medio, n_quinzenas=24,
 
     # Calcula acumulado progressivo
     df["Etanol Total Acumulado (m³)"] = df["Etanol Total Quinzena (m³)"].cumsum()
+    
+    # Adiciona outras colunas acumuladas
+    df["Açúcar Acumulado (t)"] = df["Açúcar (t)"].cumsum()
+    df["Etanol Acumulado (m³)"] = df["Etanol Total (m³)"].cumsum()
+    df["Moagem Acumulada (ton)"] = df["Moagem"].cumsum()
+    df["Etanol Anidro Cana Acumulado (m³)"] = df["Etanol Anidro Cana (m³)"].cumsum()
+    df["Etanol Hidratado Cana Acumulado (m³)"] = df["Etanol Hidratado Cana (m³)"].cumsum()
+    df["Etanol Anidro Milho Acumulado (m³)"] = df["Etanol Anidro Milho (m³)"].cumsum()
+    df["Etanol Hidratado Milho Acumulado (m³)"] = df["Etanol Hidratado Milho (m³)"].cumsum()
 
     # Adiciona dados baseline para comparação
     df = df.merge(df_baseline[["Quinzena", "Moagem Baseline", "ATR Baseline", "MIX Baseline",
@@ -1577,29 +1586,86 @@ col_btn1, col_btn2 = st.columns(2)
 with col_btn1:
     if st.button("➕ Adicionar/Atualizar Dados", use_container_width=True, type="primary"):
         if quinzena_inserir > 0:
-            st.session_state.dados_reais[quinzena_inserir] = {
-                'moagem_real': moagem_real if moagem_real > 0 else None,
-                'atr_real': atr_real if atr_real > 0 else None,
-                'mix_real': mix_real if mix_real > 0 else None,
-                'etanol_anidro_cana_real': etanol_anidro_cana_real if usar_etanol_manual and etanol_anidro_cana_real and safe_float(etanol_anidro_cana_real, 0) > 0 else None,
-                'etanol_hidratado_cana_real': etanol_hidratado_cana_real if usar_etanol_manual and etanol_hidratado_cana_real and safe_float(etanol_hidratado_cana_real, 0) > 0 else None,
-                'etanol_anidro_milho_real': etanol_anidro_milho_real if usar_etanol_manual and etanol_anidro_milho_real and safe_float(etanol_anidro_milho_real, 0) > 0 else None,
-                'etanol_hidratado_milho_real': etanol_hidratado_milho_real if usar_etanol_manual and etanol_hidratado_milho_real and safe_float(etanol_hidratado_milho_real, 0) > 0 else None,
-                'usd_real': usd_real if usd_real and safe_float(usd_real, 0) > 0 else None,
-                'ny11_real': ny11_real if ny11_real and safe_float(ny11_real, 0) > 0 else None,
-                'etanol_anidro_preco_real': etanol_anidro_preco_real if etanol_anidro_preco_real and safe_float(etanol_anidro_preco_real, 0) > 0 else None,
-                'etanol_hidratado_preco_real': etanol_hidratado_preco_real if etanol_hidratado_preco_real and safe_float(etanol_hidratado_preco_real, 0) > 0 else None,
-            }
+            # Preserva dados existentes se a quinzena já existir
+            dados_existentes = st.session_state.dados_reais.get(quinzena_inserir, {})
+            
+            # Atualiza apenas os campos fornecidos, preservando os existentes
+            novos_dados = dados_existentes.copy()
+            
+            # Atualiza apenas se o valor for fornecido (> 0)
+            if moagem_real > 0:
+                novos_dados['moagem_real'] = moagem_real
+            elif 'moagem_real' not in novos_dados:
+                novos_dados['moagem_real'] = None
+                
+            if atr_real > 0:
+                novos_dados['atr_real'] = atr_real
+            elif 'atr_real' not in novos_dados:
+                novos_dados['atr_real'] = None
+                
+            if mix_real > 0:
+                novos_dados['mix_real'] = mix_real
+            elif 'mix_real' not in novos_dados:
+                novos_dados['mix_real'] = None
+            
+            if usar_etanol_manual:
+                if etanol_anidro_cana_real and safe_float(etanol_anidro_cana_real, 0) > 0:
+                    novos_dados['etanol_anidro_cana_real'] = etanol_anidro_cana_real
+                elif 'etanol_anidro_cana_real' not in novos_dados:
+                    novos_dados['etanol_anidro_cana_real'] = None
+                    
+                if etanol_hidratado_cana_real and safe_float(etanol_hidratado_cana_real, 0) > 0:
+                    novos_dados['etanol_hidratado_cana_real'] = etanol_hidratado_cana_real
+                elif 'etanol_hidratado_cana_real' not in novos_dados:
+                    novos_dados['etanol_hidratado_cana_real'] = None
+                    
+                if etanol_anidro_milho_real and safe_float(etanol_anidro_milho_real, 0) > 0:
+                    novos_dados['etanol_anidro_milho_real'] = etanol_anidro_milho_real
+                elif 'etanol_anidro_milho_real' not in novos_dados:
+                    novos_dados['etanol_anidro_milho_real'] = None
+                    
+                if etanol_hidratado_milho_real and safe_float(etanol_hidratado_milho_real, 0) > 0:
+                    novos_dados['etanol_hidratado_milho_real'] = etanol_hidratado_milho_real
+                elif 'etanol_hidratado_milho_real' not in novos_dados:
+                    novos_dados['etanol_hidratado_milho_real'] = None
+            
+            if usd_real and safe_float(usd_real, 0) > 0:
+                novos_dados['usd_real'] = usd_real
+            elif 'usd_real' not in novos_dados:
+                novos_dados['usd_real'] = None
+                
+            if ny11_real and safe_float(ny11_real, 0) > 0:
+                novos_dados['ny11_real'] = ny11_real
+            elif 'ny11_real' not in novos_dados:
+                novos_dados['ny11_real'] = None
+                
+            if etanol_anidro_preco_real and safe_float(etanol_anidro_preco_real, 0) > 0:
+                novos_dados['etanol_anidro_preco_real'] = etanol_anidro_preco_real
+            elif 'etanol_anidro_preco_real' not in novos_dados:
+                novos_dados['etanol_anidro_preco_real'] = None
+                
+            if etanol_hidratado_preco_real and safe_float(etanol_hidratado_preco_real, 0) > 0:
+                novos_dados['etanol_hidratado_preco_real'] = etanol_hidratado_preco_real
+            elif 'etanol_hidratado_preco_real' not in novos_dados:
+                novos_dados['etanol_hidratado_preco_real'] = None
+            
+            # Atualiza os dados no session_state
+            st.session_state.dados_reais[quinzena_inserir] = novos_dados
+            
             # Salva automaticamente
             salvar_dados_reais(st.session_state.dados_reais)
             st.success(f"✅ Dados da Q{quinzena_inserir} adicionados/atualizados e salvos!")
             st.rerun()
 
 with col_btn2:
+    # Adiciona confirmação antes de limpar todos os dados
     if st.button("🗑️ Limpar Todos os Dados Reais", use_container_width=True):
-        st.session_state.dados_reais = {}
-        salvar_dados_reais(st.session_state.dados_reais)
-        st.rerun()
+        st.warning("⚠️ **ATENÇÃO:** Esta ação irá apagar TODOS os dados reais inseridos. Esta ação não pode ser desfeita!")
+        if st.button("✅ Confirmar Limpeza", type="primary", key="confirmar_limpeza"):
+            st.session_state.dados_reais = {}
+            salvar_dados_reais(st.session_state.dados_reais)
+            st.success("✅ Todos os dados reais foram removidos!")
+            st.rerun()
 
 # Lista dados reais inseridos
 if st.session_state.dados_reais:
@@ -1801,14 +1867,21 @@ st.subheader("📅 Evolução Quinzenal")
 df_mostrar = df_completo.copy()
 colunas_formatacao = {
     "Moagem": (0, fmt_br),
+    "Moagem Acumulada (ton)": (0, fmt_br),
     "ATR": (2, fmt_br),
     "MIX": (2, fmt_br),
     "Açúcar (t)": (0, fmt_br),
+    "Açúcar Acumulado (t)": (0, fmt_br),
     "Etanol Total (m³)": (0, fmt_br),
+    "Etanol Acumulado (m³)": (0, fmt_br),
     "Etanol Anidro Cana (m³)": (0, fmt_br),
+    "Etanol Anidro Cana Acumulado (m³)": (0, fmt_br),
     "Etanol Hidratado Cana (m³)": (0, fmt_br),
+    "Etanol Hidratado Cana Acumulado (m³)": (0, fmt_br),
     "Etanol Anidro Milho (m³)": (0, fmt_br),
+    "Etanol Anidro Milho Acumulado (m³)": (0, fmt_br),
     "Etanol Hidratado Milho (m³)": (0, fmt_br),
+    "Etanol Hidratado Milho Acumulado (m³)": (0, fmt_br),
     "Etanol Total Quinzena (m³)": (0, fmt_br),
     "Etanol Total Acumulado (m³)": (0, fmt_br),
     "NY11_cents": (2, lambda x: f"{x:.2f}"),
@@ -1839,16 +1912,18 @@ def highlight_real_data(row):
         return ['background-color: #e8f5e9'] * len(row)
     return [''] * len(row)
 
-# Seleciona colunas para exibição
+# Seleciona colunas para exibição (organizadas)
 colunas_exibir = [
     "Quinzena", "Data",
-    "Moagem", "ATR", "MIX",
+    "Moagem", "Moagem Acumulada (ton)", "ATR", "MIX",
     "Moagem Baseline", "ATR Baseline", "MIX Baseline",
     "Moagem Proj. Original", "ATR Proj. Original", "MIX Proj. Original",
-    "Açúcar (t)", "Açúcar Baseline (t)",
-    "Etanol Total (m³)", "Etanol Baseline (m³)",
-    "Etanol Anidro Cana (m³)", "Etanol Hidratado Cana (m³)",
-    "Etanol Anidro Milho (m³)", "Etanol Hidratado Milho (m³)",
+    "Açúcar (t)", "Açúcar Acumulado (t)", "Açúcar Baseline (t)",
+    "Etanol Total (m³)", "Etanol Acumulado (m³)", "Etanol Baseline (m³)",
+    "Etanol Anidro Cana (m³)", "Etanol Anidro Cana Acumulado (m³)",
+    "Etanol Hidratado Cana (m³)", "Etanol Hidratado Cana Acumulado (m³)",
+    "Etanol Anidro Milho (m³)", "Etanol Anidro Milho Acumulado (m³)",
+    "Etanol Hidratado Milho (m³)", "Etanol Hidratado Milho Acumulado (m³)",
     "Etanol Total Quinzena (m³)", "Etanol Total Acumulado (m³)",
     "NY11_cents", "Etanol_R$m3", "USD_BRL"
 ]
