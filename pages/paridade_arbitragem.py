@@ -365,8 +365,8 @@ def calc_paridade_hidratado_interno(
 
 def calc_paridade_acucar(
     ny_sugar_fob_cents_lb,
-    premio_fisico_usd_ton_esq,
-    premio_fisico_usd_ton_dir,
+    premio_fisico_usd_ton_cristal,
+    premio_fisico_usd_ton_malha30,
     cambio_usd_brl,
     fobizacao_container_brl_ton,
     frete_export_sugar_brl_ton,
@@ -396,100 +396,78 @@ def calc_paridade_acucar(
     sugar_vhp_fob_cents_lb = None
     
     if premio_pol_percent is not None and premio_desconto_cents_lb is not None and terminal_usd_ton is not None:
+        # Fórmula da planilha Excel: =(((C29*22,0462)-C30-(C32/C31))/20)*C31
+        # Onde:
+        # C29 = Sugar NY + POL (em cents/lb) = (NY + prêmio/desconto) * (1 + POL%)
+        # C30 = Terminal USD/ton
+        # C32 = Frete R$/ton
+        # C31 = Câmbio
+        # 22,0462 = FATOR_CWT_POR_TON
+        # 20 = SACAS_POR_TON
+        
         # NY11 + prêmio/desconto em cents/lb
         ny_com_premio_cents_lb = ny_sugar_fob_cents_lb + premio_desconto_cents_lb
         
         # Aplicar prêmio POL
         ny_com_pol_cents_lb = ny_com_premio_cents_lb * (1 + premio_pol_percent / 100)
         
-        # Converter para USD/ton
-        ny_com_pol_usd_ton = converter_cents_lb_para_usd_ton(ny_com_pol_cents_lb)
-        
-        # FOB USD/ton (antes de custos) - este é o preço FOB
-        sugar_vhp_fob_usd_ton = ny_com_pol_usd_ton
-        
-        # FOB R$/ton
-        sugar_vhp_fob_brl_ton = sugar_vhp_fob_usd_ton * cambio_usd_brl
-        
-        # PVU R$/ton (descontando terminal e frete)
-        # IMPORTANTE: O FOB é o preço no porto. Para chegar ao PVU (preço na usina),
-        # descontamos os custos de terminal e frete
-        terminal_brl_ton = terminal_usd_ton * cambio_usd_brl
-        sugar_vhp_pvu_brl_ton = sugar_vhp_fob_brl_ton - terminal_brl_ton - frete_export_sugar_brl_ton
-        
-        # Garantir que não seja negativo
-        if sugar_vhp_pvu_brl_ton < 0:
-            st.warning(f"⚠️ Atenção: Os custos de exportação (terminal + frete = R$ {terminal_brl_ton + frete_export_sugar_brl_ton:,.2f}/ton) são maiores que o FOB (R$ {sugar_vhp_fob_brl_ton:,.2f}/ton) para Açúcar VHP. Verifique os valores inseridos.")
-        
-        # PVU R$/saca
-        sugar_vhp_pvu_brl_saca = sugar_vhp_pvu_brl_ton / SACAS_POR_TON
+        # Fórmula da planilha: (((NY+POL * 22.0462) - Terminal - (Frete/Câmbio)) / 20) * Câmbio
+        sugar_vhp_pvu_brl_saca = (((ny_com_pol_cents_lb * FATOR_CWT_POR_TON) - terminal_usd_ton - (frete_export_sugar_brl_ton / cambio_usd_brl)) / SACAS_POR_TON) * cambio_usd_brl
         
         # PVU USD/ton
-        sugar_vhp_pvu_usd_ton = sugar_vhp_pvu_brl_ton / cambio_usd_brl
+        sugar_vhp_pvu_usd_ton = sugar_vhp_pvu_brl_saca * SACAS_POR_TON / cambio_usd_brl
         
         # PVU cents/lb
         sugar_vhp_pvu_cents_lb = converter_usd_ton_para_cents_lb(sugar_vhp_pvu_usd_ton)
         
-        # FOB cents/lb
-        sugar_vhp_fob_cents_lb = converter_usd_ton_para_cents_lb(sugar_vhp_fob_usd_ton)
+        # FOB cents/lb = NY + POL (já calculado)
+        sugar_vhp_fob_cents_lb = ny_com_pol_cents_lb
     
-    # ===== CÁLCULO CRISTAL EXPORTAÇÃO (Esquerda e Direita) =====
-    # NY11 já está em FOB cents/lb, então convertemos para USD/ton
-    # FOB USD/ton (esquerda e direita) - NY11 + prêmio físico
-    sugar_fob_usd_ton_esq = ny_usd_ton + premio_fisico_usd_ton_esq
-    sugar_fob_usd_ton_dir = ny_usd_ton + premio_fisico_usd_ton_dir
+    # ===== CÁLCULO CRISTAL EXPORTAÇÃO (baseado na planilha Excel) =====
+    # Fórmula da planilha: (L30-L31-L32)/20
+    # Onde:
+    # L30 = Sugar FOB R$/ton = (NY USD/ton + Prêmio Físico) * Câmbio
+    # L31 = Fobização Container R$/ton
+    # L32 = Frete R$/ton
+    # 20 = SACAS_POR_TON
+    
+    # FOB USD/ton = NY11 + Prêmio Físico
+    sugar_fob_usd_ton_cristal = ny_usd_ton + premio_fisico_usd_ton_cristal
+    sugar_fob_usd_ton_malha30 = ny_usd_ton + premio_fisico_usd_ton_malha30
     
     # FOB R$/ton
-    sugar_fob_brl_ton_esq = sugar_fob_usd_ton_esq * cambio_usd_brl
-    sugar_fob_brl_ton_dir = sugar_fob_usd_ton_dir * cambio_usd_brl
+    sugar_fob_brl_ton_cristal = sugar_fob_usd_ton_cristal * cambio_usd_brl
+    sugar_fob_brl_ton_malha30 = sugar_fob_usd_ton_malha30 * cambio_usd_brl
     
-    # IMPORTANTE: O FOB já é o preço no porto. O PVU é o preço na usina.
-    # Para chegar ao PVU, precisamos DESCONTAR os custos de exportação:
-    # - Fobização (preparação do container)
-    # - Frete (do porto até a usina)
-    # O FOB é o preço que recebemos no porto, então subtraímos os custos para chegar ao PVU
-    sugar_pvu_brl_ton_esq = (
-        sugar_fob_brl_ton_esq 
-        - fobizacao_container_brl_ton 
-        - frete_export_sugar_brl_ton
-    )
-    sugar_pvu_brl_ton_dir = (
-        sugar_fob_brl_ton_dir 
-        - fobizacao_container_brl_ton 
-        - frete_export_sugar_brl_ton
-    )
+    # PVU R$/ton = FOB R$/ton - Fobização - Frete (fórmula da planilha)
+    sugar_pvu_brl_ton_cristal = sugar_fob_brl_ton_cristal - fobizacao_container_brl_ton - frete_export_sugar_brl_ton
+    sugar_pvu_brl_ton_malha30 = sugar_fob_brl_ton_malha30 - fobizacao_container_brl_ton - frete_export_sugar_brl_ton
     
-    # Garantir que não seja negativo (se os custos forem maiores que o FOB, há erro nos inputs)
-    if sugar_pvu_brl_ton_esq < 0:
-        st.warning(f"⚠️ Atenção: Os custos de exportação (fobização + frete = R$ {fobizacao_container_brl_ton + frete_export_sugar_brl_ton:,.2f}/ton) são maiores que o FOB (R$ {sugar_fob_brl_ton_esq:,.2f}/ton) para Açúcar Exportação Esquerda. Verifique os valores inseridos.")
-    if sugar_pvu_brl_ton_dir < 0:
-        st.warning(f"⚠️ Atenção: Os custos de exportação (fobização + frete = R$ {fobizacao_container_brl_ton + frete_export_sugar_brl_ton:,.2f}/ton) são maiores que o FOB (R$ {sugar_fob_brl_ton_dir:,.2f}/ton) para Açúcar Exportação Direita. Verifique os valores inseridos.")
-    
-    # PVU R$/saca
-    sugar_pvu_brl_saca_esq = sugar_pvu_brl_ton_esq / SACAS_POR_TON
-    sugar_pvu_brl_saca_dir = sugar_pvu_brl_ton_dir / SACAS_POR_TON
+    # PVU R$/saca (fórmula da planilha: /20)
+    sugar_pvu_brl_saca_cristal = sugar_pvu_brl_ton_cristal / SACAS_POR_TON
+    sugar_pvu_brl_saca_malha30 = sugar_pvu_brl_ton_malha30 / SACAS_POR_TON
     
     # PVU USD/ton
-    sugar_pvu_usd_ton_esq = sugar_pvu_brl_ton_esq / cambio_usd_brl
-    sugar_pvu_usd_ton_dir = sugar_pvu_brl_ton_dir / cambio_usd_brl
+    sugar_pvu_usd_ton_cristal = sugar_pvu_brl_ton_cristal / cambio_usd_brl
+    sugar_pvu_usd_ton_malha30 = sugar_pvu_brl_ton_malha30 / cambio_usd_brl
     
     # PVU cents/lb
-    sugar_pvu_cents_lb_esq = converter_usd_ton_para_cents_lb(sugar_pvu_usd_ton_esq)
-    sugar_pvu_cents_lb_dir = converter_usd_ton_para_cents_lb(sugar_pvu_usd_ton_dir)
+    sugar_pvu_cents_lb_cristal = converter_usd_ton_para_cents_lb(sugar_pvu_usd_ton_cristal)
+    sugar_pvu_cents_lb_malha30 = converter_usd_ton_para_cents_lb(sugar_pvu_usd_ton_malha30)
     
     # FOB cents/lb
-    sugar_fob_cents_lb_esq = converter_usd_ton_para_cents_lb(sugar_fob_usd_ton_esq)
-    sugar_fob_cents_lb_dir = converter_usd_ton_para_cents_lb(sugar_fob_usd_ton_dir)
+    sugar_fob_cents_lb_cristal = converter_usd_ton_para_cents_lb(sugar_fob_usd_ton_cristal)
+    sugar_fob_cents_lb_malha30 = converter_usd_ton_para_cents_lb(sugar_fob_usd_ton_malha30)
     
     return {
-        'rota_esq': 'Açúcar Exportação (Esquerda)',
-        'rota_dir': 'Açúcar Exportação (Direita/Malha 30)',
-        'sugar_pvu_brl_saca_esq': sugar_pvu_brl_saca_esq,
-        'sugar_pvu_brl_saca_dir': sugar_pvu_brl_saca_dir,
-        'sugar_pvu_cents_lb_esq': sugar_pvu_cents_lb_esq,
-        'sugar_pvu_cents_lb_dir': sugar_pvu_cents_lb_dir,
-        'sugar_fob_cents_lb_esq': sugar_fob_cents_lb_esq,
-        'sugar_fob_cents_lb_dir': sugar_fob_cents_lb_dir,
+        'rota_cristal': 'Açúcar Cristal Exportação',
+        'rota_malha30': 'Açúcar Cristal Exportação Malha 30',
+        'sugar_pvu_brl_saca_cristal': sugar_pvu_brl_saca_cristal,
+        'sugar_pvu_brl_saca_malha30': sugar_pvu_brl_saca_malha30,
+        'sugar_pvu_cents_lb_cristal': sugar_pvu_cents_lb_cristal,
+        'sugar_pvu_cents_lb_malha30': sugar_pvu_cents_lb_malha30,
+        'sugar_fob_cents_lb_cristal': sugar_fob_cents_lb_cristal,
+        'sugar_fob_cents_lb_malha30': sugar_fob_cents_lb_malha30,
         'preco_sugar_cristal_esalq_brl_saca': preco_sugar_cristal_esalq_brl_saca,
         'preco_sugar_cristal_export_malha30_brl_saca': preco_sugar_cristal_export_malha30_brl_saca,
         'sugar_vhp_pvu_brl_saca': sugar_vhp_pvu_brl_saca,
@@ -649,19 +627,19 @@ with col2:
         format="%.2f",
         help="Preço do açúcar NY11 em cents por libra (preço de referência internacional)"
     )
-    premio_fisico_usd_ton_esq = st.number_input(
-        "Prêmio Físico USD/ton (Esquerda)",
-        value=23.0,
+    premio_fisico_usd_ton_cristal = st.number_input(
+        "Prêmio Físico USD/ton (Cristal Exportação)",
+        value=90.0,
         step=1.0,
         format="%.2f",
-        help="Prêmio ou desconto físico em USD por tonelada para a primeira coluna de exportação. Valores positivos = prêmio, negativos = desconto."
+        help="Prêmio ou desconto físico em USD por tonelada para açúcar cristal exportação. Valores positivos = prêmio, negativos = desconto."
     )
-    premio_fisico_usd_ton_dir = st.number_input(
-        "Prêmio Físico USD/ton (Direita/Malha 30)",
+    premio_fisico_usd_ton_malha30 = st.number_input(
+        "Prêmio Físico USD/ton (Cristal Exportação Malha 30)",
         value=104.0,
         step=1.0,
         format="%.2f",
-        help="Prêmio ou desconto físico em USD por tonelada para a segunda coluna/Malha 30. Valores positivos = prêmio, negativos = desconto."
+        help="Prêmio ou desconto físico em USD por tonelada para açúcar cristal exportação Malha 30. Valores positivos = prêmio, negativos = desconto."
     )
 
 st.divider()
@@ -1010,8 +988,8 @@ paridade_hidratado_int['vhp_pvu_cents_lb'] = converter_usd_ton_para_cents_lb(
 
 paridade_acucar = calc_paridade_acucar(
     ny_sugar_fob_cents_lb,
-    premio_fisico_usd_ton_esq,
-    premio_fisico_usd_ton_dir,
+    premio_fisico_usd_ton_cristal,
+    premio_fisico_usd_ton_malha30,
     cambio_usd_brl,
     fobizacao_container_brl_ton,
     frete_export_sugar_brl_ton,
@@ -1082,17 +1060,17 @@ if paridade_acucar.get('sugar_vhp_pvu_brl_saca') is not None:
 
 # Açúcar Cristal Exportação
 dados_decisao.append({
-    'Rota': '🍬 Açúcar Exportação (Esquerda)',
-    'VHP PVU (R$/saca)': paridade_acucar['sugar_pvu_brl_saca_esq'],
-    'VHP PVU (cents/lb)': paridade_acucar['sugar_pvu_cents_lb_esq'],
+    'Rota': '🍬 Açúcar Cristal Exportação',
+    'VHP PVU (R$/saca)': paridade_acucar['sugar_pvu_brl_saca_cristal'],
+    'VHP PVU (cents/lb)': paridade_acucar['sugar_pvu_cents_lb_cristal'],
     'PVU (R$/m³)': None,
     'Tipo': 'Açúcar'
 })
 
 dados_decisao.append({
-    'Rota': '🍬 Açúcar Exportação (Direita)',
-    'VHP PVU (R$/saca)': paridade_acucar['sugar_pvu_brl_saca_dir'],
-    'VHP PVU (cents/lb)': paridade_acucar['sugar_pvu_cents_lb_dir'],
+    'Rota': '🍬 Açúcar Cristal Exportação Malha 30',
+    'VHP PVU (R$/saca)': paridade_acucar['sugar_pvu_brl_saca_malha30'],
+    'VHP PVU (cents/lb)': paridade_acucar['sugar_pvu_cents_lb_malha30'],
     'PVU (R$/m³)': None,
     'Tipo': 'Açúcar'
 })
@@ -1423,17 +1401,27 @@ with tabs[3]:
 
 with tabs[4]:
     st.markdown("### Açúcar")
+    
+    # VHP Exportação
+    if paridade_acucar.get('sugar_vhp_pvu_brl_saca') is not None:
+        st.markdown("**Açúcar VHP Exportação**")
+        st.metric("VHP PVU (R$/saca)", f"R$ {paridade_acucar['sugar_vhp_pvu_brl_saca']:,.2f}/saca")
+        st.metric("VHP PVU (cents/lb)", f"{paridade_acucar['sugar_vhp_pvu_cents_lb']:,.2f} cents/lb")
+        st.metric("VHP FOB (cents/lb)", f"{paridade_acucar['sugar_vhp_fob_cents_lb']:,.2f} cents/lb")
+        st.divider()
+    
+    # Cristal Exportação
     col_a1, col_a2 = st.columns(2)
     with col_a1:
-        st.markdown("**Exportação (Esquerda)**")
-        st.metric("VHP PVU (R$/saca)", f"R$ {paridade_acucar['sugar_pvu_brl_saca_esq']:,.2f}/saca")
-        st.metric("VHP PVU (cents/lb)", f"{paridade_acucar['sugar_pvu_cents_lb_esq']:,.2f} cents/lb")
-        st.metric("VHP FOB (cents/lb)", f"{paridade_acucar['sugar_fob_cents_lb_esq']:,.2f} cents/lb")
+        st.markdown("**Cristal Exportação**")
+        st.metric("VHP PVU (R$/saca)", f"R$ {paridade_acucar['sugar_pvu_brl_saca_cristal']:,.2f}/saca")
+        st.metric("VHP PVU (cents/lb)", f"{paridade_acucar['sugar_pvu_cents_lb_cristal']:,.2f} cents/lb")
+        st.metric("VHP FOB (cents/lb)", f"{paridade_acucar['sugar_fob_cents_lb_cristal']:,.2f} cents/lb")
     with col_a2:
-        st.markdown("**Exportação (Direita/Malha 30)**")
-        st.metric("VHP PVU (R$/saca)", f"R$ {paridade_acucar['sugar_pvu_brl_saca_dir']:,.2f}/saca")
-        st.metric("VHP PVU (cents/lb)", f"{paridade_acucar['sugar_pvu_cents_lb_dir']:,.2f} cents/lb")
-        st.metric("VHP FOB (cents/lb)", f"{paridade_acucar['sugar_fob_cents_lb_dir']:,.2f} cents/lb")
+        st.markdown("**Cristal Exportação Malha 30**")
+        st.metric("VHP PVU (R$/saca)", f"R$ {paridade_acucar['sugar_pvu_brl_saca_malha30']:,.2f}/saca")
+        st.metric("VHP PVU (cents/lb)", f"{paridade_acucar['sugar_pvu_cents_lb_malha30']:,.2f} cents/lb")
+        st.metric("VHP FOB (cents/lb)", f"{paridade_acucar['sugar_fob_cents_lb_malha30']:,.2f} cents/lb")
     
     st.divider()
     st.markdown("**Mercado Interno**")
