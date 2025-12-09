@@ -412,8 +412,14 @@ def calc_paridade_acucar(
         sugar_vhp_fob_brl_ton = sugar_vhp_fob_usd_ton * cambio_usd_brl
         
         # PVU R$/ton (descontando terminal e frete)
+        # IMPORTANTE: O FOB é o preço no porto. Para chegar ao PVU (preço na usina),
+        # descontamos os custos de terminal e frete
         terminal_brl_ton = terminal_usd_ton * cambio_usd_brl
         sugar_vhp_pvu_brl_ton = sugar_vhp_fob_brl_ton - terminal_brl_ton - frete_export_sugar_brl_ton
+        
+        # Garantir que não seja negativo
+        if sugar_vhp_pvu_brl_ton < 0:
+            st.warning(f"⚠️ Atenção: Os custos de exportação (terminal + frete = R$ {terminal_brl_ton + frete_export_sugar_brl_ton:,.2f}/ton) são maiores que o FOB (R$ {sugar_vhp_fob_brl_ton:,.2f}/ton) para Açúcar VHP. Verifique os valores inseridos.")
         
         # PVU R$/saca
         sugar_vhp_pvu_brl_saca = sugar_vhp_pvu_brl_ton / SACAS_POR_TON
@@ -428,6 +434,7 @@ def calc_paridade_acucar(
         sugar_vhp_fob_cents_lb = converter_usd_ton_para_cents_lb(sugar_vhp_fob_usd_ton)
     
     # ===== CÁLCULO CRISTAL EXPORTAÇÃO (Esquerda e Direita) =====
+    # NY11 já está em FOB cents/lb, então convertemos para USD/ton
     # FOB USD/ton (esquerda e direita) - NY11 + prêmio físico
     sugar_fob_usd_ton_esq = ny_usd_ton + premio_fisico_usd_ton_esq
     sugar_fob_usd_ton_dir = ny_usd_ton + premio_fisico_usd_ton_dir
@@ -436,7 +443,11 @@ def calc_paridade_acucar(
     sugar_fob_brl_ton_esq = sugar_fob_usd_ton_esq * cambio_usd_brl
     sugar_fob_brl_ton_dir = sugar_fob_usd_ton_dir * cambio_usd_brl
     
-    # PVU R$/ton (descontando fobização e frete)
+    # IMPORTANTE: O FOB já é o preço no porto. O PVU é o preço na usina.
+    # Para chegar ao PVU, precisamos DESCONTAR os custos de exportação:
+    # - Fobização (preparação do container)
+    # - Frete (do porto até a usina)
+    # O FOB é o preço que recebemos no porto, então subtraímos os custos para chegar ao PVU
     sugar_pvu_brl_ton_esq = (
         sugar_fob_brl_ton_esq 
         - fobizacao_container_brl_ton 
@@ -447,6 +458,12 @@ def calc_paridade_acucar(
         - fobizacao_container_brl_ton 
         - frete_export_sugar_brl_ton
     )
+    
+    # Garantir que não seja negativo (se os custos forem maiores que o FOB, há erro nos inputs)
+    if sugar_pvu_brl_ton_esq < 0:
+        st.warning(f"⚠️ Atenção: Os custos de exportação (fobização + frete = R$ {fobizacao_container_brl_ton + frete_export_sugar_brl_ton:,.2f}/ton) são maiores que o FOB (R$ {sugar_fob_brl_ton_esq:,.2f}/ton) para Açúcar Exportação Esquerda. Verifique os valores inseridos.")
+    if sugar_pvu_brl_ton_dir < 0:
+        st.warning(f"⚠️ Atenção: Os custos de exportação (fobização + frete = R$ {fobizacao_container_brl_ton + frete_export_sugar_brl_ton:,.2f}/ton) são maiores que o FOB (R$ {sugar_fob_brl_ton_dir:,.2f}/ton) para Açúcar Exportação Direita. Verifique os valores inseridos.")
     
     # PVU R$/saca
     sugar_pvu_brl_saca_esq = sugar_pvu_brl_ton_esq / SACAS_POR_TON
@@ -576,15 +593,26 @@ with st.sidebar.expander("📋 Parâmetros CBIO", expanded=False):
         value=FC_ANIDRO_LITROS_POR_CBIO,
         step=0.1,
         format="%.2f",
-        help="Quantos litros de anidro geram 1 CBIO"
+        help="FC = Fator de Conversão. Quantos litros de etanol anidro são necessários para gerar 1 CBIO. Padrão: 712.40 litros/CBIO"
     )
     fc_hidratado = st.number_input(
         "FC Hidratado (litros/CBIO)",
         value=FC_HIDRATADO_LITROS_POR_CBIO,
         step=0.1,
         format="%.2f",
-        help="Quantos litros de hidratado geram 1 CBIO"
+        help="FC = Fator de Conversão. Quantos litros de etanol hidratado são necessários para gerar 1 CBIO. Padrão: 749.75 litros/CBIO"
     )
+    
+    st.info("""
+    **💡 O que é FC (Fator de Conversão) CBIO?**
+    
+    O **FC CBIO** indica quantos **litros de etanol** são necessários para gerar **1 CBIO** (Crédito de Descarbonização).
+    
+    - **Anidro:** 712.40 litros geram 1 CBIO
+    - **Hidratado:** 749.75 litros geram 1 CBIO
+    
+    Este fator é usado para calcular quanto valor de CBIO você recebe por m³ de etanol produzido.
+    """)
 
 # ============================================================================
 # INPUTS DE MERCADO
@@ -616,24 +644,24 @@ with col2:
     st.subheader("🌾 Açúcar")
     ny_sugar_fob_cents_lb = st.number_input(
         "NY11 FOB (cents/lb)",
-        value=14.50,
+        value=15.80,
         step=0.10,
         format="%.2f",
         help="Preço do açúcar NY11 em cents por libra (preço de referência internacional)"
     )
     premio_fisico_usd_ton_esq = st.number_input(
         "Prêmio Físico USD/ton (Esquerda)",
-        value=0.0,
+        value=23.0,
         step=1.0,
         format="%.2f",
-        help="Prêmio ou desconto físico em USD por tonelada para a primeira coluna de exportação"
+        help="Prêmio ou desconto físico em USD por tonelada para a primeira coluna de exportação. Valores positivos = prêmio, negativos = desconto."
     )
     premio_fisico_usd_ton_dir = st.number_input(
         "Prêmio Físico USD/ton (Direita/Malha 30)",
-        value=0.0,
+        value=104.0,
         step=1.0,
         format="%.2f",
-        help="Prêmio ou desconto físico em USD por tonelada para a segunda coluna/Malha 30"
+        help="Prêmio ou desconto físico em USD por tonelada para a segunda coluna/Malha 30. Valores positivos = prêmio, negativos = desconto."
     )
 
 st.divider()
