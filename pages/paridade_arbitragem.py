@@ -1091,7 +1091,7 @@ st.markdown("### 📊 Comparação Completa de Todas as Rotas")
 # Formatação melhorada
 df_display_decisao = df_decisao.copy()
 
-# Adiciona coluna de diferença percentual e absoluta
+# Adiciona coluna de diferença percentual e absoluta (mantém valores numéricos para highlight)
 df_display_decisao['Diferença Absoluta (R$/saca)'] = df_decisao['VHP PVU (R$/saca)'].apply(
     lambda x: x - melhor_rota['VHP PVU (R$/saca)']
 )
@@ -1099,35 +1099,48 @@ df_display_decisao['Diferença Percentual'] = df_decisao['VHP PVU (R$/saca)'].ap
     lambda x: ((x - melhor_rota['VHP PVU (R$/saca)']) / melhor_rota['VHP PVU (R$/saca)']) * 100
 )
 
-# Formata valores
-df_display_decisao['💰 VHP PVU (R$/saca)'] = df_display_decisao['VHP PVU (R$/saca)'].apply(lambda x: f"R$ {x:,.2f}")
-df_display_decisao['💵 VHP PVU (cents/lb)'] = df_display_decisao['VHP PVU (cents/lb)'].apply(lambda x: f"{x:,.2f}")
-df_display_decisao['🏭 PVU (R$/m³)'] = df_display_decisao['PVU (R$/m³)'].apply(lambda x: f"R$ {x:,.2f}" if x is not None else "-")
-df_display_decisao['📉 Diferença Absoluta'] = df_display_decisao['Diferença Absoluta (R$/saca)'].apply(lambda x: f"R$ {x:+,.2f}")
-df_display_decisao['📊 Diferença %'] = df_display_decisao['Diferença Percentual'].apply(lambda x: f"{x:+.2f}%")
-
-# Renomeia colunas
+# Renomeia coluna Rota primeiro
 df_display_decisao = df_display_decisao.rename(columns={
     'Rota': '📍 Rota'
 })
 
+# Formata valores (depois de renomear)
+df_display_decisao['💰 VHP PVU (R$/saca)'] = df_decisao['VHP PVU (R$/saca)'].apply(lambda x: f"R$ {x:,.2f}")
+df_display_decisao['💵 VHP PVU (cents/lb)'] = df_decisao['VHP PVU (cents/lb)'].apply(lambda x: f"{x:,.2f}")
+df_display_decisao['🏭 PVU (R$/m³)'] = df_decisao['PVU (R$/m³)'].apply(lambda x: f"R$ {x:,.2f}" if x is not None else "-")
+df_display_decisao['📉 Diferença Absoluta'] = df_display_decisao['Diferença Absoluta (R$/saca)'].apply(lambda x: f"R$ {x:+,.2f}")
+df_display_decisao['📊 Diferença %'] = df_display_decisao['Diferença Percentual'].apply(lambda x: f"{x:+.2f}%")
+
+# Cria mapeamento de rotas para diferenças (para usar na função de highlight)
+mapeamento_diferencas = {}
+for idx, row in df_display_decisao.iterrows():
+    rota = row['📍 Rota']
+    mapeamento_diferencas[rota] = {
+        'diff_abs': row['Diferença Absoluta (R$/saca)'],
+        'diff_pct': row['Diferença Percentual']
+    }
+
 # Destaca a melhor rota e formata diferenças
 def highlight_best_and_format(row):
     styles = []
-    is_best = row['📍 Rota'] == melhor_rota['Rota']
+    rota_atual = row['📍 Rota']
+    is_best = rota_atual == melhor_rota['Rota']
+    
+    # Pega diferenças do mapeamento (mais seguro que acessar DataFrame)
+    diffs = mapeamento_diferencas.get(rota_atual, {'diff_abs': 0, 'diff_pct': 0})
+    diff_abs = diffs['diff_abs']
+    diff_pct = diffs['diff_pct']
     
     for col in colunas_exibir:
         if is_best:
             styles.append('background-color: #2d5016; color: white; font-weight: bold')
-        elif col == '📉 Diferença Absoluta' or col == '📊 Diferença %':
-            # Pega o índice da linha
-            idx = df_display_decisao.index[df_display_decisao['📍 Rota'] == row['📍 Rota']].tolist()[0]
-            if col == '📉 Diferença Absoluta':
-                valor = df_decisao.loc[idx, 'Diferença Absoluta (R$/saca)']
+        elif col == '📉 Diferença Absoluta':
+            if diff_abs < 0:
+                styles.append('background-color: #4a1c1c; color: #ffcccc')
             else:
-                valor = df_decisao.loc[idx, 'Diferença Percentual']
-            
-            if valor < 0:
+                styles.append('')
+        elif col == '📊 Diferença %':
+            if diff_pct < 0:
                 styles.append('background-color: #4a1c1c; color: #ffcccc')
             else:
                 styles.append('')
