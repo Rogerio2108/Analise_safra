@@ -228,8 +228,6 @@ def criar_grafico_comparacao_real_projetado(df, coluna, titulo, unidade="", eixo
         height=550,
         hovermode='x unified',
         template='plotly_white',
-        plot_bgcolor='rgba(255,255,255,1)',
-        paper_bgcolor='rgba(255,255,255,1)',
         font=dict(family="Arial", size=12),
         legend=dict(
             orientation="h",
@@ -358,8 +356,6 @@ def criar_grafico_comparacao_baseline(df, coluna_proj, coluna_baseline, titulo, 
         height=550,
         hovermode='x unified',
         template='plotly_white',
-        plot_bgcolor='rgba(255,255,255,1)',
-        paper_bgcolor='rgba(255,255,255,1)',
         font=dict(family="Arial", size=12),
         legend=dict(
             orientation="h",
@@ -569,8 +565,6 @@ def criar_grafico_desvios_baseline(df):
     fig.update_layout(
         height=800,
         template='plotly_white',
-        plot_bgcolor='rgba(255,255,255,1)',
-        paper_bgcolor='rgba(255,255,255,1)',
         font=dict(family="Arial", size=12),
         margin=dict(t=120, b=100, l=70, r=70),
         title=dict(
@@ -715,8 +709,6 @@ def criar_grafico_etanol_detalhado(df):
         height=850,
         hovermode='x unified',
         template='plotly_white',
-        plot_bgcolor='rgba(255,255,255,1)',
-        paper_bgcolor='rgba(255,255,255,1)',
         font=dict(family="Arial", size=12),
         legend=dict(
             orientation="h",
@@ -996,8 +988,6 @@ def criar_grafico_desvios(df):
     fig.update_layout(
         height=900,
         template='plotly_white',
-        plot_bgcolor='rgba(255,255,255,1)',
-        paper_bgcolor='rgba(255,255,255,1)',
         font=dict(family="Arial", size=12),
         margin=dict(t=120, b=100, l=70, r=70),
         title=dict(
@@ -1210,8 +1200,6 @@ def criar_grafico_precos_real_vs_simulado(df):
         height=850,
         hovermode='x unified',
         template='plotly_white',
-        plot_bgcolor='rgba(255,255,255,1)',
-        paper_bgcolor='rgba(255,255,255,1)',
         font=dict(family="Arial", size=12),
         margin=dict(t=120, b=100, l=70, r=70),
         title=dict(
@@ -1411,8 +1399,6 @@ def criar_grafico_analise_estatistica(df):
     fig.update_layout(
         height=1000,
         template='plotly_white',
-        plot_bgcolor='rgba(255,255,255,1)',
-        paper_bgcolor='rgba(255,255,255,1)',
         font=dict(family="Arial", size=12),
         margin=dict(t=120, b=100, l=70, r=70),
         title=dict(

@@ -117,30 +117,61 @@ def calcular_etanol_detalhado(etanol_total_cana, quinzena, n_quinzenas_total):
     return etanol_anidro_cana, etanol_hidratado_cana
 
 
-def calcular_etanol_milho(etanol_total, quinzena, n_quinzenas_total):
+def calcular_etanol_milho(etanol_total, quinzena, n_quinzenas_total, 
+                          etanol_anidro_cana=None, etanol_hidratado_cana=None):
     """
     Calcula produção de etanol de milho (30% do total) e distribui entre anidro e hidratado.
-    Usa as mesmas proporções do etanol de cana.
+    Ajusta baseado em correlações com produção de cana.
+    
+    Args:
+        etanol_total: Total de etanol (cana + milho)
+        quinzena: Número da quinzena
+        n_quinzenas_total: Total de quinzenas
+        etanol_anidro_cana: Produção de etanol anidro de cana (para correlação)
+        etanol_hidratado_cana: Produção de etanol hidratado de cana (para correlação)
     """
     PERCENTUAL_ETANOL_MILHO = 0.30  # 30% do total de etanol é de milho
     etanol_total_milho = etanol_total * PERCENTUAL_ETANOL_MILHO
+    
+    # Ajusta baseado em correlações com produção de cana
+    # Correlação Produção Anidro milho vs Produção Anidro: 0.215098
+    # Correlação Produção Hidratado milho vs Produção Anidro: -0.117124
+    if etanol_anidro_cana is not None and etanol_anidro_cana > 0:
+        # Ajusta anidro milho baseado em correlação positiva com anidro cana
+        fator_correlacao_anidro = 1.0 + (0.215098 * (etanol_anidro_cana / etanol_total_milho - 1.0) * 0.1)
+        etanol_total_milho = etanol_total_milho * fator_correlacao_anidro
+    
     etanol_anidro_milho, etanol_hidratado_milho = calcular_etanol_detalhado(
         etanol_total_milho, quinzena, n_quinzenas_total
     )
+    
+    # Ajusta hidratado milho baseado em correlação negativa com anidro cana
+    if etanol_anidro_cana is not None and etanol_anidro_cana > 0 and etanol_hidratado_milho > 0:
+        # Correlação negativa: quando anidro cana aumenta, hidratado milho tende a diminuir
+        fator_correlacao_hidratado = 1.0 - (0.117124 * (etanol_anidro_cana / etanol_total_milho - 1.0) * 0.1)
+        etanol_hidratado_milho = etanol_hidratado_milho * fator_correlacao_hidratado
+    
     return etanol_anidro_milho, etanol_hidratado_milho
 
 
-def simular_producao_etanol_com_volatilidade(etanol_base, tipo, seed=None):
+def simular_producao_etanol_com_volatilidade(etanol_base, tipo, seed=None, 
+                                             preco_anidro=None, preco_hidratado=None,
+                                             etanol_anidro_cana=None, etanol_hidratado_cana=None):
     """
     Simula produção de etanol adicionando ruído baseado em volatilidade e desvio padrão.
+    Ajusta produção baseado em correlações com preços e produção de cana.
 
     Args:
         etanol_base: Valor base da produção (m³)
         tipo: Tipo de etanol ('anidro_cana', 'hidratado_cana', 'anidro_milho', 'hidratado_milho')
         seed: Semente para reprodutibilidade (opcional)
+        preco_anidro: Preço do etanol anidro (R$/m³) para ajuste por correlação
+        preco_hidratado: Preço do etanol hidratado (R$/m³) para ajuste por correlação
+        etanol_anidro_cana: Produção de etanol anidro de cana (para correlação milho)
+        etanol_hidratado_cana: Produção de etanol hidratado de cana (para correlação milho)
 
     Returns:
-        float: Valor simulado com ruído
+        float: Valor simulado com ruído e ajustes de correlação
     """
     try:
         from Dados_base import (
@@ -190,6 +221,53 @@ def simular_producao_etanol_com_volatilidade(etanol_base, tipo, seed=None):
         # Usa desvio padrão absoluto
         ruido = rng.normal(0, desvio_padrao)
         etanol_simulado = etanol_base + ruido
+    
+    # Ajusta produção baseado em correlações com preços
+    # Normaliza preços para ter base de comparação (preço médio esperado ~2500 R$/m³)
+    preco_referencia = 2500.0
+    
+    if tipo == 'anidro_cana' and preco_anidro is not None:
+        # Correlação Produção Anidro vs À vista Anidro R$: 0.027573 (muito baixa, mas consideramos)
+        variacao_preco = (preco_anidro - preco_referencia) / preco_referencia
+        fator_preco = 1.0 + (0.027573 * variacao_preco * 0.5)  # Ajuste suave
+        etanol_simulado = etanol_simulado * fator_preco
+    
+    elif tipo == 'hidratado_cana' and preco_hidratado is not None:
+        # Correlação Hidratado vs À vista Hidratado R$: 0.148969
+        variacao_preco = (preco_hidratado - preco_referencia) / preco_referencia
+        fator_preco = 1.0 + (0.148969 * variacao_preco * 0.5)  # Ajuste moderado
+        etanol_simulado = etanol_simulado * fator_preco
+    
+    elif tipo == 'anidro_milho':
+        # Correlação Produção Anidro milho vs À vista Anidro R$: 0.403616 (moderada)
+        if preco_anidro is not None:
+            variacao_preco = (preco_anidro - preco_referencia) / preco_referencia
+            fator_preco = 1.0 + (0.403616 * variacao_preco * 0.5)
+            etanol_simulado = etanol_simulado * fator_preco
+        
+        # Correlação Produção Anidro milho vs Produção Anidro: 0.215098
+        if etanol_anidro_cana is not None and etanol_base > 0:
+            variacao_cana = (etanol_anidro_cana - etanol_base * 0.7) / (etanol_base * 0.7)
+            fator_cana = 1.0 + (0.215098 * variacao_cana * 0.3)
+            etanol_simulado = etanol_simulado * fator_cana
+    
+    elif tipo == 'hidratado_milho':
+        # Correlação Produção Hidratado milho vs À vista Hidratado R$: 0.661373 (alta)
+        # Correlação Produção Hidratado milho vs À vista Anidro R$: 0.661109 (alta)
+        if preco_hidratado is not None:
+            variacao_preco = (preco_hidratado - preco_referencia) / preco_referencia
+            fator_preco = 1.0 + (0.661373 * variacao_preco * 0.5)  # Ajuste forte
+            etanol_simulado = etanol_simulado * fator_preco
+        elif preco_anidro is not None:
+            variacao_preco = (preco_anidro - preco_referencia) / preco_referencia
+            fator_preco = 1.0 + (0.661109 * variacao_preco * 0.5)  # Ajuste forte
+            etanol_simulado = etanol_simulado * fator_preco
+        
+        # Correlação Produção Hidratado milho vs Produção Anidro: -0.117124 (negativa)
+        if etanol_anidro_cana is not None and etanol_base > 0:
+            variacao_cana = (etanol_anidro_cana - etanol_base * 0.7) / (etanol_base * 0.7)
+            fator_cana = 1.0 - (0.117124 * variacao_cana * 0.3)  # Negativa
+            etanol_simulado = etanol_simulado * fator_cana
 
     # Garante que não seja negativo
     return max(0.0, etanol_simulado)
@@ -1059,22 +1137,38 @@ for i, row in df_completo.iterrows():
     etanol_anidro_cana_base, etanol_hidratado_cana_base = calcular_etanol_detalhado(
         etanol_q, quinzena, int(n_quinz)
     )
-    etanol_anidro_milho_base, etanol_hidratado_milho_base = calcular_etanol_milho(
-        etanol_q, quinzena, int(n_quinz)
-    )
     
-    # Aplica simulação com volatilidade
+    # Obtém preços da quinzena (se disponíveis)
+    preco_anidro = row.get("Etanol_Anidro_R$m3", None)
+    preco_hidratado = row.get("Etanol_Hidratado_R$m3", None)
+    
+    # Aplica simulação com volatilidade para cana (primeiro, sem dependência de milho)
     etanol_anidro_cana = simular_producao_etanol_com_volatilidade(
-        etanol_anidro_cana_base, 'anidro_cana', seed=42 + quinzena
+        etanol_anidro_cana_base, 'anidro_cana', seed=42 + quinzena,
+        preco_anidro=preco_anidro, preco_hidratado=preco_hidratado
     )
     etanol_hidratado_cana = simular_producao_etanol_com_volatilidade(
-        etanol_hidratado_cana_base, 'hidratado_cana', seed=42 + quinzena + 1000
+        etanol_hidratado_cana_base, 'hidratado_cana', seed=42 + quinzena + 1000,
+        preco_anidro=preco_anidro, preco_hidratado=preco_hidratado
     )
+    
+    # Calcula etanol de milho considerando produção de cana (correlações)
+    etanol_anidro_milho_base, etanol_hidratado_milho_base = calcular_etanol_milho(
+        etanol_q, quinzena, int(n_quinz),
+        etanol_anidro_cana=etanol_anidro_cana,
+        etanol_hidratado_cana=etanol_hidratado_cana
+    )
+    
+    # Aplica simulação com volatilidade para milho (com dependência de cana e preços)
     etanol_anidro_milho = simular_producao_etanol_com_volatilidade(
-        etanol_anidro_milho_base, 'anidro_milho', seed=42 + quinzena + 2000
+        etanol_anidro_milho_base, 'anidro_milho', seed=42 + quinzena + 2000,
+        preco_anidro=preco_anidro, preco_hidratado=preco_hidratado,
+        etanol_anidro_cana=etanol_anidro_cana, etanol_hidratado_cana=etanol_hidratado_cana
     )
     etanol_hidratado_milho = simular_producao_etanol_com_volatilidade(
-        etanol_hidratado_milho_base, 'hidratado_milho', seed=42 + quinzena + 3000
+        etanol_hidratado_milho_base, 'hidratado_milho', seed=42 + quinzena + 3000,
+        preco_anidro=preco_anidro, preco_hidratado=preco_hidratado,
+        etanol_anidro_cana=etanol_anidro_cana, etanol_hidratado_cana=etanol_hidratado_cana
     )
     
     producao_etanol_anidro_cana.append(etanol_anidro_cana)
