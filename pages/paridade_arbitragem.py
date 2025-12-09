@@ -109,12 +109,22 @@ def calcular_cbio_liquido_por_m3(
 # ============================================================================
 
 def converter_cents_lb_para_usd_ton(cents_lb):
-    """Converte cents/lb para USD/ton."""
-    return (cents_lb / 100) * FATOR_CWT_POR_TON
+    """
+    Converte cents/lb para USD/ton.
+    
+    Fórmula: cents/lb * 22.0462 = USD/ton
+    Exemplo: 15.80 cents/lb * 22.0462 = 348.33 USD/ton
+    """
+    return cents_lb * FATOR_CWT_POR_TON
 
 def converter_usd_ton_para_cents_lb(usd_ton):
-    """Converte USD/ton para cents/lb."""
-    return (usd_ton * 100) / FATOR_CWT_POR_TON
+    """
+    Converte USD/ton para cents/lb.
+    
+    Fórmula: USD/ton / 22.0462 = cents/lb
+    Exemplo: 348.33 USD/ton / 22.0462 = 15.80 cents/lb
+    """
+    return usd_ton / FATOR_CWT_POR_TON
 
 def converter_brl_saca_para_usd_ton(brl_saca, cambio_usd_brl):
     """Converte R$/saca para USD/ton."""
