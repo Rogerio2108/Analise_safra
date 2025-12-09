@@ -81,7 +81,7 @@ CORES = {
 
 def criar_grafico_comparacao_real_projetado(df, coluna, titulo, unidade="", eixo_y=""):
     """
-    Cria gráfico comparando dados reais vs projetados (SEM baseline para evitar duplicação).
+    Cria gráfico comparando dados reais vs projetados vs baseline (TUDO EM UM GRÁFICO).
 
     Args:
         df: DataFrame com dados
@@ -92,6 +92,21 @@ def criar_grafico_comparacao_real_projetado(df, coluna, titulo, unidade="", eixo
     """
     fig = go.Figure()
 
+    # Baseline (se disponível) - adiciona primeiro para ficar atrás
+    coluna_baseline = coluna.replace('Moagem', 'Moagem Baseline').replace('ATR', 'ATR Baseline').replace('MIX', 'MIX Baseline').replace('Açúcar (t)', 'Açúcar Baseline (t)').replace('Etanol Total (m³)', 'Etanol Baseline (m³)')
+    if coluna_baseline in df.columns:
+        df_baseline_valid = df[df[coluna_baseline].notna() & (df[coluna_baseline] > 0)]
+        if len(df_baseline_valid) > 0:
+            fig.add_trace(go.Scatter(
+                x=df_baseline_valid['Data'],
+                y=df_baseline_valid[coluna_baseline],
+                name='<b>Baseline (Perfil Ideal)</b>',
+                line=dict(color='#17becf', width=3.5, dash='dot'),
+                mode='lines+markers',
+                marker=dict(size=7, symbol='x', line=dict(width=1.5, color='white')),
+                hovertemplate=f'<b>Baseline</b><br>Data: %{{x}}<br>{titulo}: %{{y:,.0f}} {unidade}<extra></extra>'
+            ))
+
     # Dados projetados (sempre presentes) - linha principal
     fig.add_trace(go.Scatter(
         x=df['Data'],
@@ -99,10 +114,8 @@ def criar_grafico_comparacao_real_projetado(df, coluna, titulo, unidade="", eixo
         name='<b>Projetado</b>',
         line=dict(color=CORES['Projetado'], width=3.5, dash='dash'),
         mode='lines+markers',
-        marker=dict(size=7, symbol='circle', line=dict(width=1, color='white')),
-        hovertemplate=f'<b>Projetado</b><br>Data: %{{x}}<br>{titulo}: %{{y:,.0f}} {unidade}<extra></extra>',
-        fill='tonexty' if len(fig.data) > 0 else None,
-        fillcolor='rgba(140, 86, 75, 0.1)'
+        marker=dict(size=7, symbol='circle', line=dict(width=1.5, color='white')),
+        hovertemplate=f'<b>Projetado</b><br>Data: %{{x}}<br>{titulo}: %{{y:,.0f}} {unidade}<extra></extra>'
     ))
 
     # Identifica dados reais (se houver coluna correspondente)
@@ -220,42 +233,44 @@ def criar_grafico_comparacao_real_projetado(df, coluna, titulo, unidade="", eixo
 
     fig.update_layout(
         title=dict(
-            text=f'<b>{titulo} - Real vs Projetado</b>',
-            font=dict(size=18, family="Arial", color="#1f1f1f"),
+            text=f'<b>{titulo} - Real vs Projetado vs Baseline</b>',
+            font=dict(size=18, family="Arial", color="#ffffff"),
             x=0.5,
             xanchor='center'
         ),
         height=550,
         hovermode='x unified',
-        template='plotly_white',
-        font=dict(family="Arial", size=12),
+        template='plotly_dark',
+        font=dict(family="Arial", size=12, color="#ffffff"),
         legend=dict(
             orientation="h",
             yanchor="bottom",
             y=1.02,
             xanchor="center",
             x=0.5,
-            font=dict(size=13),
-            bgcolor='rgba(255,255,255,0.9)',
-            bordercolor='rgba(0,0,0,0.2)',
-            borderwidth=1
+            font=dict(size=14, color="#ffffff", family="Arial"),
+            bgcolor='rgba(0,0,0,0.85)',
+            bordercolor='rgba(255,255,255,0.4)',
+            borderwidth=2
         ),
         margin=dict(t=120, b=90, l=70, r=70),
         xaxis=dict(
             title="<b>Data</b>",
-            title_font=dict(size=13, family="Arial"),
-            gridcolor='rgba(0,0,0,0.1)',
-            showgrid=True
+            title_font=dict(size=13, family="Arial", color="#ffffff"),
+            gridcolor='rgba(255,255,255,0.15)',
+            showgrid=True,
+            tickfont=dict(color="#ffffff")
         ),
         yaxis=dict(
             title=f"<b>{eixo_y or titulo} {unidade}</b>",
-            title_font=dict(size=13, family="Arial"),
-            gridcolor='rgba(0,0,0,0.1)',
-            showgrid=True
+            title_font=dict(size=13, family="Arial", color="#ffffff"),
+            gridcolor='rgba(255,255,255,0.15)',
+            showgrid=True,
+            tickfont=dict(color="#ffffff")
         )
     )
 
-    fig.update_xaxes(tickangle=-45, nticks=12, tickfont=dict(size=11))
+    fig.update_xaxes(tickangle=-45, nticks=12, tickfont=dict(size=11, color="#ffffff"))
 
     return fig
 
@@ -349,41 +364,43 @@ def criar_grafico_comparacao_baseline(df, coluna_proj, coluna_baseline, titulo, 
     fig.update_layout(
         title=dict(
             text=f'<b>{titulo} - Baseline vs Projetado vs Real</b>',
-            font=dict(size=18, family="Arial", color="#1f1f1f"),
+            font=dict(size=18, family="Arial", color="#ffffff"),
             x=0.5,
             xanchor='center'
         ),
         height=550,
         hovermode='x unified',
-        template='plotly_white',
-        font=dict(family="Arial", size=12),
+        template='plotly_dark',
+        font=dict(family="Arial", size=12, color="#ffffff"),
         legend=dict(
             orientation="h",
             yanchor="bottom",
             y=1.02,
             xanchor="center",
             x=0.5,
-            font=dict(size=13),
-            bgcolor='rgba(255,255,255,0.9)',
-            bordercolor='rgba(0,0,0,0.2)',
-            borderwidth=1
+            font=dict(size=14, color="#ffffff", family="Arial"),
+            bgcolor='rgba(0,0,0,0.85)',
+            bordercolor='rgba(255,255,255,0.4)',
+            borderwidth=2
         ),
         margin=dict(t=120, b=90, l=70, r=70),
         xaxis=dict(
             title="<b>Data</b>",
-            title_font=dict(size=13, family="Arial"),
-            gridcolor='rgba(0,0,0,0.1)',
-            showgrid=True
+            title_font=dict(size=13, family="Arial", color="#ffffff"),
+            gridcolor='rgba(255,255,255,0.15)',
+            showgrid=True,
+            tickfont=dict(color="#ffffff")
         ),
         yaxis=dict(
             title=f"<b>{eixo_y or titulo} {unidade}</b>",
-            title_font=dict(size=13, family="Arial"),
-            gridcolor='rgba(0,0,0,0.1)',
-            showgrid=True
+            title_font=dict(size=13, family="Arial", color="#ffffff"),
+            gridcolor='rgba(255,255,255,0.15)',
+            showgrid=True,
+            tickfont=dict(color="#ffffff")
         )
     )
 
-    fig.update_xaxes(tickangle=-45, nticks=12, tickfont=dict(size=11))
+    fig.update_xaxes(tickangle=-45, nticks=12, tickfont=dict(size=11, color="#ffffff"))
 
     return fig
 
@@ -548,7 +565,7 @@ def criar_grafico_desvios_baseline(df):
             xref="x4", yref="y4",
             x=0.5, y=0.5,
             showarrow=False,
-            font=dict(size=14),
+            font=dict(size=14, color="#ffffff", family="Arial"),
             row=2, col=2
         )
 
@@ -564,12 +581,12 @@ def criar_grafico_desvios_baseline(df):
 
     fig.update_layout(
         height=800,
-        template='plotly_white',
+        template='plotly_dark',
         font=dict(family="Arial", size=12),
         margin=dict(t=120, b=100, l=70, r=70),
         title=dict(
             text='<b>Desvios da Baseline (Perfil Ideal)</b>',
-            font=dict(size=18, family="Arial", color="#1f1f1f"),
+            font=dict(size=18, family="Arial", color="#ffffff"),
             x=0.5,
             xanchor='center'
         )
@@ -708,7 +725,7 @@ def criar_grafico_etanol_detalhado(df):
     fig.update_layout(
         height=850,
         hovermode='x unified',
-        template='plotly_white',
+        template='plotly_dark',
         font=dict(family="Arial", size=12),
         legend=dict(
             orientation="h",
@@ -716,9 +733,9 @@ def criar_grafico_etanol_detalhado(df):
             y=1.02,
             xanchor="center",
             x=0.5,
-            font=dict(size=13),
-            bgcolor='rgba(255,255,255,0.9)',
-            bordercolor='rgba(0,0,0,0.2)',
+            font=dict(size=14, color="#ffffff", family="Arial"),
+            bgcolor='rgba(0,0,0,0.85)',
+            bordercolor='rgba(255,255,255,0.4)',
             borderwidth=1
         ),
         margin=dict(t=120, b=100, l=70, r=70)
@@ -987,12 +1004,12 @@ def criar_grafico_desvios(df):
 
     fig.update_layout(
         height=900,
-        template='plotly_white',
+        template='plotly_dark',
         font=dict(family="Arial", size=12),
         margin=dict(t=120, b=100, l=70, r=70),
         title=dict(
             text='<b>Análise de Desvios - Real vs Projetado</b>',
-            font=dict(size=18, family="Arial", color="#1f1f1f"),
+            font=dict(size=18, family="Arial", color="#ffffff"),
             x=0.5,
             xanchor='center'
         )
@@ -1199,12 +1216,12 @@ def criar_grafico_precos_real_vs_simulado(df):
     fig.update_layout(
         height=850,
         hovermode='x unified',
-        template='plotly_white',
+        template='plotly_dark',
         font=dict(family="Arial", size=12),
         margin=dict(t=120, b=100, l=70, r=70),
         title=dict(
             text='<b>Preços - Real vs Simulado</b>',
-            font=dict(size=18, family="Arial", color="#1f1f1f"),
+            font=dict(size=18, family="Arial", color="#ffffff"),
             x=0.5,
             xanchor='center'
         )
@@ -1398,7 +1415,7 @@ def criar_grafico_analise_estatistica(df):
 
     fig.update_layout(
         height=1000,
-        template='plotly_white',
+        template='plotly_dark',
         font=dict(family="Arial", size=12),
         margin=dict(t=120, b=100, l=70, r=70),
         title=dict(
@@ -1610,14 +1627,11 @@ st.divider()
 tipo_grafico = st.selectbox(
     "📊 Selecione o tipo de gráfico:",
     [
-        "Comparação Real vs Projetado - Moagem",
-        "Comparação Real vs Projetado - ATR",
-        "Comparação Real vs Projetado - MIX",
-        "Comparação Real vs Projetado - Açúcar",
-        "Comparação Real vs Projetado - Etanol",
-        "Comparação com Baseline - Moagem",
-        "Comparação com Baseline - ATR",
-        "Comparação com Baseline - MIX",
+        "Moagem - Real vs Projetado vs Baseline",
+        "ATR - Real vs Projetado vs Baseline",
+        "MIX - Real vs Projetado vs Baseline",
+        "Açúcar - Real vs Projetado vs Baseline",
+        "Etanol - Real vs Projetado vs Baseline",
         "Desvios da Baseline",
         "Etanol Detalhado",
         "Análise de Desvios",
@@ -1632,62 +1646,35 @@ tipo_grafico = st.selectbox(
 st.divider()
 
 # Gera gráficos baseado na seleção
-if tipo_grafico == "Comparação Real vs Projetado - Moagem":
-    st.subheader("📊 Moagem - Real vs Projetado")
+if tipo_grafico == "Moagem - Real vs Projetado vs Baseline":
+    st.subheader("📊 Moagem - Real vs Projetado vs Baseline")
     fig = criar_grafico_comparacao_real_projetado(df_completo, 'Moagem', 'Moagem', 'ton', 'Moagem (ton)')
     st.plotly_chart(fig, use_container_width=True)
-    st.caption("💡 Este gráfico compara a moagem real (quando disponível) com a moagem projetada.")
+    st.caption("💡 Este gráfico compara a moagem real, projetada e baseline (perfil ideal) em um único gráfico.")
 
-elif tipo_grafico == "Comparação Real vs Projetado - ATR":
-    st.subheader("📊 ATR - Real vs Projetado")
+elif tipo_grafico == "ATR - Real vs Projetado vs Baseline":
+    st.subheader("📊 ATR - Real vs Projetado vs Baseline")
     fig = criar_grafico_comparacao_real_projetado(df_completo, 'ATR', 'ATR', 'kg/t', 'ATR (kg/t)')
     st.plotly_chart(fig, use_container_width=True)
-    st.caption("💡 Este gráfico compara o ATR real (quando disponível) com o ATR projetado.")
+    st.caption("💡 Este gráfico compara o ATR real, projetado e baseline (perfil ideal) em um único gráfico.")
 
-elif tipo_grafico == "Comparação Real vs Projetado - MIX":
-    st.subheader("📊 MIX - Real vs Projetado")
+elif tipo_grafico == "MIX - Real vs Projetado vs Baseline":
+    st.subheader("📊 MIX - Real vs Projetado vs Baseline")
     fig = criar_grafico_comparacao_real_projetado(df_completo, 'MIX', 'MIX', '%', 'MIX (%)')
     st.plotly_chart(fig, use_container_width=True)
-    st.caption("💡 Este gráfico compara o MIX real (quando disponível) com o MIX projetado.")
+    st.caption("💡 Este gráfico compara o MIX real, projetado e baseline (perfil ideal) em um único gráfico.")
 
-elif tipo_grafico == "Comparação Real vs Projetado - Açúcar":
-    st.subheader("📊 Açúcar - Real vs Projetado")
+elif tipo_grafico == "Açúcar - Real vs Projetado vs Baseline":
+    st.subheader("📊 Açúcar - Real vs Projetado vs Baseline")
     fig = criar_grafico_comparacao_real_projetado(df_completo, 'Açúcar (t)', 'Açúcar', 't', 'Açúcar (t)')
     st.plotly_chart(fig, use_container_width=True)
-    st.caption("💡 Este gráfico compara a produção de açúcar real (quando disponível) com a projetada.")
+    st.caption("💡 Este gráfico compara a produção de açúcar real, projetada e baseline (perfil ideal) em um único gráfico.")
 
-elif tipo_grafico == "Comparação Real vs Projetado - Etanol":
-    st.subheader("📊 Etanol - Real vs Projetado")
+elif tipo_grafico == "Etanol - Real vs Projetado vs Baseline":
+    st.subheader("📊 Etanol - Real vs Projetado vs Baseline")
     fig = criar_grafico_comparacao_real_projetado(df_completo, 'Etanol Total (m³)', 'Etanol Total', 'm³', 'Etanol Total (m³)')
     st.plotly_chart(fig, use_container_width=True)
-    st.caption("💡 Este gráfico compara a produção de etanol real (quando disponível) com a projetada.")
-
-elif tipo_grafico == "Comparação com Baseline - Moagem":
-    st.subheader("📊 Moagem - Comparação com Baseline")
-    fig = criar_grafico_comparacao_baseline(df_completo, 'Moagem', 'Moagem Baseline', 'Moagem', 'ton', 'Moagem (ton)')
-    if fig:
-        st.plotly_chart(fig, use_container_width=True)
-        st.caption("💡 Este gráfico compara a moagem projetada e real com a baseline (perfil ideal).")
-    else:
-        st.warning("⚠️ Dados baseline não disponíveis.")
-
-elif tipo_grafico == "Comparação com Baseline - ATR":
-    st.subheader("📊 ATR - Comparação com Baseline")
-    fig = criar_grafico_comparacao_baseline(df_completo, 'ATR', 'ATR Baseline', 'ATR', 'kg/t', 'ATR (kg/t)')
-    if fig:
-        st.plotly_chart(fig, use_container_width=True)
-        st.caption("💡 Este gráfico compara o ATR projetado e real com a baseline (perfil ideal).")
-    else:
-        st.warning("⚠️ Dados baseline não disponíveis.")
-
-elif tipo_grafico == "Comparação com Baseline - MIX":
-    st.subheader("📊 MIX - Comparação com Baseline")
-    fig = criar_grafico_comparacao_baseline(df_completo, 'MIX', 'MIX Baseline', 'MIX', '%', 'MIX (%)')
-    if fig:
-        st.plotly_chart(fig, use_container_width=True)
-        st.caption("💡 Este gráfico compara o MIX projetado e real com a baseline (perfil ideal).")
-    else:
-        st.warning("⚠️ Dados baseline não disponíveis.")
+    st.caption("💡 Este gráfico compara a produção de etanol real, projetada e baseline (perfil ideal) em um único gráfico.")
 
 elif tipo_grafico == "Desvios da Baseline":
     st.subheader("📈 Desvios da Baseline (Perfil Ideal)")
@@ -1784,7 +1771,7 @@ elif tipo_grafico == "Evolução de Parâmetros de Safra":
     fig.update_layout(
         height=850,
         hovermode='x unified',
-        template='plotly_white',
+        template='plotly_dark',
         font=dict(family="Arial", size=11),
         showlegend=False,
         margin=dict(t=80, b=100, l=60, r=60)
@@ -1873,7 +1860,7 @@ elif tipo_grafico == "Produção Acumulada":
     fig.update_layout(
         height=550,
         hovermode='x unified',
-        template='plotly_white',
+        template='plotly_dark',
         font=dict(family="Arial", size=11),
         showlegend=False,
         margin=dict(t=80, b=100, l=60, r=60)
