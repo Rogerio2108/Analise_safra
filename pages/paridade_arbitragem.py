@@ -1429,6 +1429,7 @@ for i, (idx, row) in enumerate(top3.iterrows()):
             **💵 {row['VHP PVU (cents/lb)']:,.2f} cents/lb**
             """)
         elif i == 1:
+            diff_1 = row['VHP PVU (R$/saca)'] - melhor_rota['VHP PVU (R$/saca)']
             st.info(f"""
             **🥈 {row['Rota']}**
             
@@ -1436,9 +1437,10 @@ for i, (idx, row) in enumerate(top3.iterrows()):
             
             **💵 {row['VHP PVU (cents/lb)']:,.2f} cents/lb**
             
-            Diferença: R$ {row['VHP PVU (R$/saca)'] - melhor_rota['VHP PVU (R$/saca)']:+,.2f}/saca
+            Diferença: R$ {diff_1:+,.2f}/saca
             """)
         else:
+            diff_2 = row['VHP PVU (R$/saca)'] - melhor_rota['VHP PVU (R$/saca)']
             st.warning(f"""
             **🥉 {row['Rota']}**
             
@@ -1446,7 +1448,7 @@ for i, (idx, row) in enumerate(top3.iterrows()):
             
             **💵 {row['VHP PVU (cents/lb)']:,.2f} cents/lb**
             
-            Diferença: R$ {row['VHP PVU (R$/saca)'] - melhor_rota['VHP PVU (R$/saca)']:+,.2f}/saca
+            Diferença: R$ {diff_2:+,.2f}/saca
             """)
 
 st.divider()
@@ -1455,10 +1457,12 @@ st.divider()
 st.markdown("### ✅ **MELHOR OPÇÃO PARA PRODUZIR**")
 
 # Container destacado para a melhor rota
+vhp_saca_melhor = melhor_rota['VHP PVU (R$/saca)']
+vhp_cents_melhor = melhor_rota['VHP PVU (cents/lb)']
 st.success(f"""
 **🎯 {melhor_rota['Rota']}**
 
-**💰 VHP PVU: R$ {melhor_rota['VHP PVU (R$/saca)']:,.2f}/saca** | **💵 {melhor_rota['VHP PVU (cents/lb)']:,.2f} cents/lb**
+**💰 VHP PVU: R$ {vhp_saca_melhor:,.2f}/saca** | **💵 {vhp_cents_melhor:,.2f} cents/lb**
 
 Esta é a rota que paga **MAIS** em equivalente VHP. Todas as outras rotas pagam menos.
 """, icon="✅")
@@ -1474,7 +1478,7 @@ with col1:
 with col2:
     st.metric(
         "💰 VHP PVU (R$/saca)",
-        f"R$ {melhor_rota['VHP PVU (R$/saca)']:,.2f}",
+        f"R$ {vhp_saca_melhor:,.2f}",
         delta="Melhor opção",
         delta_color="normal"
     )
@@ -1485,10 +1489,11 @@ with col3:
         delta=None
     )
 with col4:
-    if melhor_rota['PVU (R$/m³)'] is not None:
+    pvu_melhor = melhor_rota.get('PVU (R$/m³)')
+    if pvu_melhor is not None:
         st.metric(
             "🏭 PVU (R$/m³)",
-            f"R$ {melhor_rota['PVU (R$/m³)']:,.2f}",
+            f"R$ {pvu_melhor:,.2f}",
             delta=None
         )
     else:
