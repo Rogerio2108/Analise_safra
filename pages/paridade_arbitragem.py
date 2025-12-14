@@ -1348,42 +1348,60 @@ if paridade_acucar.get('sugar_vhp_pvu_brl_saca') is not None:
 
 # Açúcar Cristal Exportação
 if paridade_acucar.get('sugar_export_cristal_pvu_brl_saca') is not None:
-    dados_decisao.append({
-        'Rota': '🍬 Açúcar Cristal Exportação',
-        'VHP PVU (R$/saca)': paridade_acucar.get('sugar_export_vhp_pvu_brl_saca') or paridade_acucar.get('sugar_export_cristal_pvu_brl_saca'),
-        'VHP PVU (cents/lb)': paridade_acucar.get('sugar_export_vhp_pvu_cents_lb') or paridade_acucar.get('sugar_export_cristal_pvu_cents_lb'),
-        'PVU (R$/m³)': None,
-        'Tipo': 'Açúcar'
-    })
+    vhp_saca_export = paridade_acucar.get('sugar_export_vhp_pvu_brl_saca')
+    if vhp_saca_export is None:
+        vhp_saca_export = paridade_acucar.get('sugar_export_cristal_pvu_brl_saca')
+    vhp_cents_export = paridade_acucar.get('sugar_export_vhp_pvu_cents_lb')
+    if vhp_cents_export is None:
+        vhp_cents_export = paridade_acucar.get('sugar_export_cristal_pvu_cents_lb')
+    if vhp_saca_export is not None and vhp_cents_export is not None:
+        dados_decisao.append({
+            'Rota': '🍬 Açúcar Cristal Exportação',
+            'VHP PVU (R$/saca)': vhp_saca_export,
+            'VHP PVU (cents/lb)': vhp_cents_export,
+            'PVU (R$/m³)': None,
+            'Tipo': 'Açúcar'
+        })
 
 if paridade_acucar.get('sugar_malha30_cristal_pvu_brl_saca') is not None:
+    vhp_saca_malha30 = paridade_acucar.get('sugar_malha30_vhp_pvu_brl_saca')
+    if vhp_saca_malha30 is None:
+        vhp_saca_malha30 = paridade_acucar.get('sugar_malha30_cristal_pvu_brl_saca')
+    vhp_cents_malha30 = paridade_acucar.get('sugar_malha30_vhp_pvu_cents_lb')
+    if vhp_cents_malha30 is None:
+        vhp_cents_malha30 = paridade_acucar.get('sugar_malha30_cristal_pvu_cents_lb')
+    if vhp_saca_malha30 is not None and vhp_cents_malha30 is not None:
+        dados_decisao.append({
+            'Rota': '🍬 Açúcar Cristal Exportação Malha 30',
+            'VHP PVU (R$/saca)': vhp_saca_malha30,
+            'VHP PVU (cents/lb)': vhp_cents_malha30,
+            'PVU (R$/m³)': None,
+            'Tipo': 'Açúcar'
+        })
+
+# SUGAR Cristal Esalq (preço direto do mercado interno)
+if preco_sugar_cristal_esalq_brl_saca is not None and preco_sugar_cristal_esalq_brl_saca > 0:
     dados_decisao.append({
-        'Rota': '🍬 Açúcar Cristal Exportação Malha 30',
-        'VHP PVU (R$/saca)': paridade_acucar.get('sugar_malha30_vhp_pvu_brl_saca') or paridade_acucar.get('sugar_malha30_cristal_pvu_brl_saca'),
-        'VHP PVU (cents/lb)': paridade_acucar.get('sugar_malha30_vhp_pvu_cents_lb') or paridade_acucar.get('sugar_malha30_cristal_pvu_cents_lb'),
+        'Rota': '🍬 SUGAR Cristal Esalq',
+        'VHP PVU (R$/saca)': preco_sugar_cristal_esalq_brl_saca,
+        'VHP PVU (cents/lb)': converter_usd_ton_para_cents_lb(
+            converter_brl_saca_para_usd_ton(preco_sugar_cristal_esalq_brl_saca, cambio_usd_brl)
+        ),
         'PVU (R$/m³)': None,
         'Tipo': 'Açúcar'
     })
 
-dados_decisao.append({
-    'Rota': '🍬 SUGAR Cristal Esalq',
-    'VHP PVU (R$/saca)': preco_sugar_cristal_esalq_brl_saca,
-    'VHP PVU (cents/lb)': converter_usd_ton_para_cents_lb(
-        converter_brl_saca_para_usd_ton(preco_sugar_cristal_esalq_brl_saca, cambio_usd_brl)
-    ),
-    'PVU (R$/m³)': None,
-    'Tipo': 'Açúcar'
-})
-
-dados_decisao.append({
-    'Rota': '🍬 Cristal Exportação Malha 30',
-    'VHP PVU (R$/saca)': preco_sugar_cristal_export_malha30_brl_saca,
-    'VHP PVU (cents/lb)': converter_usd_ton_para_cents_lb(
-        converter_brl_saca_para_usd_ton(preco_sugar_cristal_export_malha30_brl_saca, cambio_usd_brl)
-    ),
-    'PVU (R$/m³)': None,
-    'Tipo': 'Açúcar'
-})
+# Cristal Exportação Malha 30 (preço direto do mercado)
+if preco_sugar_cristal_export_malha30_brl_saca is not None and preco_sugar_cristal_export_malha30_brl_saca > 0:
+    dados_decisao.append({
+        'Rota': '🍬 Cristal Exportação Malha 30',
+        'VHP PVU (R$/saca)': preco_sugar_cristal_export_malha30_brl_saca,
+        'VHP PVU (cents/lb)': converter_usd_ton_para_cents_lb(
+            converter_brl_saca_para_usd_ton(preco_sugar_cristal_export_malha30_brl_saca, cambio_usd_brl)
+        ),
+        'PVU (R$/m³)': None,
+        'Tipo': 'Açúcar'
+    })
 
 df_decisao = pd.DataFrame(dados_decisao)
 df_decisao = df_decisao.sort_values('VHP PVU (R$/saca)', ascending=False)
