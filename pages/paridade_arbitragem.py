@@ -236,7 +236,11 @@ def calc_paridade_anidro_exportacao(
     # Nota: Requer C30 (terminal_usd_ton) e C32 (frete_brl_ton) do bloco açúcar
     vhp_fob_cents_lb = None
     if terminal_usd_ton is not None and frete_brl_ton is not None:
-        vhp_fob_cents_lb = (((((preco_liquido_pvu_brl_m3) / FATOR_M3_ANIDRO_EXPORT_PARA_SACA_VHP) * SACAS_POR_TON) + frete_brl_ton + (terminal_usd_ton * cambio_usd_brl)) / FATOR_CWT_POR_TON / cambio_usd_brl) / FATOR_DESCONTO_VHP_FOB
+        # Quebrando a expressão longa para evitar problemas de parsing no Python 3.13
+        vhp_fob_saca_temp = preco_liquido_pvu_brl_m3 / FATOR_M3_ANIDRO_EXPORT_PARA_SACA_VHP
+        vhp_fob_ton_temp = (vhp_fob_saca_temp * SACAS_POR_TON) + frete_brl_ton + (terminal_usd_ton * cambio_usd_brl)
+        vhp_fob_cents_lb_temp = (vhp_fob_ton_temp / FATOR_CWT_POR_TON) / cambio_usd_brl
+        vhp_fob_cents_lb = vhp_fob_cents_lb_temp / FATOR_DESCONTO_VHP_FOB
     
     return {
         'rota': 'Anidro Exportação',
@@ -292,7 +296,11 @@ def calc_paridade_hidratado_exportacao(
     # Nota: A planilha usa 32.669 aqui, não 31.304 (parece ser um erro na planilha, mas seguimos exatamente)
     vhp_fob_cents_lb = None
     if terminal_usd_ton is not None and frete_brl_ton is not None:
-        vhp_fob_cents_lb = ((((((preco_liquido_pvu_brl_m3) / 32.669) * SACAS_POR_TON) + frete_brl_ton + (terminal_usd_ton * cambio_usd_brl)) / FATOR_CWT_POR_TON / cambio_usd_brl) / FATOR_DESCONTO_VHP_FOB)
+        # Quebrando a expressão longa para evitar problemas de parsing no Python 3.13
+        vhp_fob_saca_temp = preco_liquido_pvu_brl_m3 / 32.669
+        vhp_fob_ton_temp = (vhp_fob_saca_temp * SACAS_POR_TON) + frete_brl_ton + (terminal_usd_ton * cambio_usd_brl)
+        vhp_fob_cents_lb_temp = (vhp_fob_ton_temp / FATOR_CWT_POR_TON) / cambio_usd_brl
+        vhp_fob_cents_lb = vhp_fob_cents_lb_temp / FATOR_DESCONTO_VHP_FOB
     
     return {
         'rota': 'Hidratado Exportação',
@@ -482,7 +490,11 @@ def calc_paridade_hidratado_interno(
     # Excel: =((((((L10)/31.504)*20)+$C$32+($C$30*$C$4))/22.0462/$C$4)/1.042)
     vhp_fob_cents_lb = None
     if terminal_usd_ton is not None and frete_brl_ton is not None:
-        vhp_fob_cents_lb = ((((((preco_pvu_mais_cbio_brl_m3) / FATOR_M3_HIDRATADO_INTERNO_PARA_SACA_VHP) * SACAS_POR_TON) + frete_brl_ton + (terminal_usd_ton * cambio_usd_brl)) / FATOR_CWT_POR_TON / cambio_usd_brl) / FATOR_DESCONTO_VHP_FOB)
+        # Quebrando a expressão longa para evitar problemas de parsing no Python 3.13
+        vhp_saca_temp = preco_pvu_mais_cbio_brl_m3 / FATOR_M3_HIDRATADO_INTERNO_PARA_SACA_VHP
+        vhp_ton_temp = (vhp_saca_temp * SACAS_POR_TON) + frete_brl_ton + (terminal_usd_ton * cambio_usd_brl)
+        vhp_cents_lb_temp = (vhp_ton_temp / FATOR_CWT_POR_TON) / cambio_usd_brl
+        vhp_fob_cents_lb = vhp_cents_lb_temp / FATOR_DESCONTO_VHP_FOB
     
     # L17: Equivalente Cristal BRL/Saca PVU
     # Excel: =(L18*22.0462/20)*$C$4
@@ -493,7 +505,10 @@ def calc_paridade_hidratado_interno(
     # Excel: =((((((L10)/31.504)*20)+($I$28*$C$4))/22.0462/$C$4))
     cristal_pvu_cents_lb = None
     if premio_fisico_pvu is not None:
-        cristal_pvu_cents_lb = ((((((preco_pvu_mais_cbio_brl_m3) / FATOR_M3_HIDRATADO_INTERNO_PARA_SACA_VHP) * SACAS_POR_TON) + (premio_fisico_pvu * cambio_usd_brl)) / FATOR_CWT_POR_TON / cambio_usd_brl))
+        # Quebrando a expressão longa para evitar problemas de parsing no Python 3.13
+        cristal_saca_temp = preco_pvu_mais_cbio_brl_m3 / FATOR_M3_HIDRATADO_INTERNO_PARA_SACA_VHP
+        cristal_ton_temp = (cristal_saca_temp * SACAS_POR_TON) + (premio_fisico_pvu * cambio_usd_brl)
+        cristal_pvu_cents_lb = (cristal_ton_temp / FATOR_CWT_POR_TON) / cambio_usd_brl
         # Agora calculamos L17 usando L18
         cristal_pvu_brl_saca = (cristal_pvu_cents_lb * FATOR_CWT_POR_TON / SACAS_POR_TON) * cambio_usd_brl
     
@@ -501,7 +516,10 @@ def calc_paridade_hidratado_interno(
     # Excel: =(((((((L10)/31.504)*20)+$C$32+L31)+($I$28*$C$4))/22.0462/$C$4))
     cristal_fob_cents_lb = None
     if frete_brl_ton is not None and fobizacao_container_brl_ton is not None and premio_fisico_pvu is not None:
-        cristal_fob_cents_lb = (((((((preco_pvu_mais_cbio_brl_m3) / FATOR_M3_HIDRATADO_INTERNO_PARA_SACA_VHP) * SACAS_POR_TON) + frete_brl_ton + fobizacao_container_brl_ton) + (premio_fisico_pvu * cambio_usd_brl)) / FATOR_CWT_POR_TON / cambio_usd_brl)
+        # Quebrando a expressão longa para evitar problemas de parsing no Python 3.13
+        cristal_fob_saca_temp = preco_pvu_mais_cbio_brl_m3 / FATOR_M3_HIDRATADO_INTERNO_PARA_SACA_VHP
+        cristal_fob_ton_temp = (cristal_fob_saca_temp * SACAS_POR_TON) + frete_brl_ton + fobizacao_container_brl_ton + (premio_fisico_pvu * cambio_usd_brl)
+        cristal_fob_cents_lb = (cristal_fob_ton_temp / FATOR_CWT_POR_TON) / cambio_usd_brl
     
     return {
         'rota': 'Hidratado Mercado Interno',
