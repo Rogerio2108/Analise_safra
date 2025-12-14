@@ -5,21 +5,33 @@ Interface para editar inputs e visualizar outputs dos cálculos de paridade.
 
 import streamlit as st
 import pandas as pd
-import sys
-from pathlib import Path
 
-# Adiciona o diretório pages ao path para importar paridade_produtos
-sys.path.insert(0, str(Path(__file__).parent))
-
-from paridade_produtos import (
-    parse_ptbr_number,
-    fmt_br,
-    calc_anidro_exportacao,
-    calc_hidratado_exportacao,
-    calc_anidro_mi,
-    calc_hidratado_mi,
-    calc_acucar
-)
+# Importação relativa - paridade_produtos está no mesmo diretório
+try:
+    from .paridade_produtos import (
+        parse_ptbr_number,
+        fmt_br,
+        calc_anidro_exportacao,
+        calc_hidratado_exportacao,
+        calc_anidro_mi,
+        calc_hidratado_mi,
+        calc_acucar
+    )
+except ImportError:
+    # Fallback para importação absoluta
+    import sys
+    from pathlib import Path
+    current_dir = Path(__file__).parent
+    sys.path.insert(0, str(current_dir))
+    from paridade_produtos import (
+        parse_ptbr_number,
+        fmt_br,
+        calc_anidro_exportacao,
+        calc_hidratado_exportacao,
+        calc_anidro_mi,
+        calc_hidratado_mi,
+        calc_acucar
+    )
 
 st.set_page_config(page_title="Paridade Produtos", layout="wide")
 
@@ -35,7 +47,7 @@ with st.sidebar:
     
     # C4 cambio_brl_usd
     cambio_brl_usd = st.number_input(
-        "C4 cambio_brl_usd — Câmbio USD/BRL",
+        "cambio_brl_usd — Câmbio USD/BRL",
         value=5.35,
         step=0.01,
         format="%.4f"
@@ -44,25 +56,25 @@ with st.sidebar:
     # C5-C8: Custos adicionais (usados em I16-I19)
     st.subheader("Custos Adicionais (para cálculos I16-I19)")
     custo_c5 = st.number_input(
-        "C5 custo_c5",
+        "custo_c5",
         value=0.0,
         step=0.1,
         format="%.2f"
     )
     custo_c6 = st.number_input(
-        "C6 custo_c6",
+        "custo_c6",
         value=0.0,
         step=0.1,
         format="%.2f"
     )
     custo_c7 = st.number_input(
-        "C7 custo_c7",
+        "custo_c7",
         value=0.0,
         step=0.1,
         format="%.2f"
     )
     custo_c8 = st.number_input(
-        "C8 custos_adicionais_demurrage — Custos Adicionais Demurrage",
+        "custos_adicionais_demurrage — Custos Adicionais Demurrage",
         value=0.0,
         step=0.1,
         format="%.2f",
@@ -72,25 +84,25 @@ with st.sidebar:
     # C30, C32: Parâmetros do bloco açúcar
     st.subheader("Parâmetros Açúcar (compartilhados)")
     terminal_usd_por_ton = st.number_input(
-        "C30 terminal_usd_por_ton — Terminal USD/ton",
+        "terminal_usd_por_ton — Terminal USD/ton",
         value=12.5,
         step=0.1,
         format="%.2f"
     )
     frete_brl_por_ton = st.number_input(
-        "C32 frete_brl_por_ton — Frete BRL/ton",
+        "frete_brl_por_ton — Frete BRL/ton",
         value=202.0,
         step=1.0,
         format="%.2f"
     )
     fobizacao_container_brl_ton = st.number_input(
-        "L31 fobizacao_container_brl_ton — Fobização Container BRL/ton",
+        "fobizacao_container_brl_ton — Fobização Container BRL/ton",
         value=198.0,
         step=1.0,
         format="%.2f"
     )
     frete_brl_por_ton_l32 = st.number_input(
-        "L32 frete_brl_por_ton_l32 — Frete BRL/ton (L32)",
+        "frete_brl_por_ton_l32 — Frete BRL/ton (L32)",
         value=202.0,
         step=1.0,
         format="%.2f"
@@ -98,7 +110,7 @@ with st.sidebar:
     
     # Custo Cristal vs VHP
     custo_cristal_vs_vhp = st.number_input(
-        "D17 custo_cristal_vs_vhp — Custo Cristal vs VHP",
+        "custo_cristal_vs_vhp — Custo Cristal vs VHP",
         value=0.0,
         step=0.1,
         format="%.2f"
@@ -110,31 +122,31 @@ with st.sidebar:
     # BLOCO 1 - ANIDRO EXPORTAÇÃO
     st.subheader("BLOCO 1 - Anidro Exportação")
     preco_anidro_fob_usd = st.number_input(
-        "C3 preco_anidro_fob_usd — Preço Anidro FOB USD",
+        "preco_anidro_fob_usd — Preço Anidro FOB USD",
         value=750.0,
         step=1.0,
         format="%.2f"
     )
     frete_porto_usina_brl_bloco1 = st.number_input(
-        "C5 frete_porto_usina_brl — Frete Porto-Usina BRL",
+        "frete_porto_usina_brl — Frete Porto-Usina BRL",
         value=200.0,
         step=1.0,
         format="%.2f"
     )
     terminal_brl_bloco1 = st.number_input(
-        "C6 terminal_brl — Terminal BRL",
+        "terminal_brl — Terminal BRL",
         value=100.0,
         step=1.0,
         format="%.2f"
     )
     supervisao_documentos_brl_bloco1 = st.number_input(
-        "C7 supervisao_documentos_brl — Supervisão/Documentos BRL",
+        "supervisao_documentos_brl — Supervisão/Documentos BRL",
         value=4.0,
         step=0.1,
         format="%.2f"
     )
     custos_adicionais_demurrage_bloco1 = st.number_input(
-        "C8 custos_adicionais_demurrage — Custos Adicionais Demurrage",
+        "custos_adicionais_demurrage — Custos Adicionais Demurrage",
         value=0.0,
         step=0.1,
         format="%.2f"
@@ -143,7 +155,7 @@ with st.sidebar:
     # BLOCO 2 - HIDRATADO EXPORTAÇÃO
     st.subheader("BLOCO 2 - Hidratado Exportação")
     preco_hidratado_fob_usd = st.number_input(
-        "F3 preco_hidratado_fob_usd — Preço Hidratado FOB USD",
+        "preco_hidratado_fob_usd — Preço Hidratado FOB USD",
         value=550.0,
         step=1.0,
         format="%.2f"
@@ -152,25 +164,25 @@ with st.sidebar:
     # BLOCO 3 - ANIDRO MERCADO INTERNO
     st.subheader("BLOCO 3 - Anidro Mercado Interno")
     preco_anidro_com_impostos = st.number_input(
-        "I3 preco_anidro_com_impostos — Preço Anidro com Impostos",
+        "preco_anidro_com_impostos — Preço Anidro com Impostos",
         value=3350.0,
         step=1.0,
         format="%.2f"
     )
     pis_cofins = st.number_input(
-        "I4 pis_cofins — PIS/COFINS",
+        "pis_cofins — PIS/COFINS",
         value=192.2,
         step=0.1,
         format="%.2f"
     )
     contribuicao_agroindustria = st.number_input(
-        "I5 contribuicao_agroindustria — Contribuição Agroindústria",
+        "contribuicao_agroindustria — Contribuição Agroindústria",
         value=0.0,
         step=0.01,
         format="%.4f"
     )
     valor_cbio_bruto = st.number_input(
-        "I7 valor_cbio_bruto — Valor CBIO Bruto",
+        "valor_cbio_bruto — Valor CBIO Bruto",
         value=40.0,
         step=1.0,
         format="%.2f"
@@ -179,37 +191,37 @@ with st.sidebar:
     # BLOCO 4 - HIDRATADO MERCADO INTERNO
     st.subheader("BLOCO 4 - Hidratado Mercado Interno")
     preco_hidratado_rp_com_impostos = st.number_input(
-        "L3 preco_hidratado_rp_com_impostos — Preço Hidratado RP com Impostos",
+        "preco_hidratado_rp_com_impostos — Preço Hidratado RP com Impostos",
         value=3400.0,
         step=1.0,
         format="%.2f"
     )
     pis_cofins_hidratado = st.number_input(
-        "L4 pis_cofins — PIS/COFINS",
+        "pis_cofins_hidratado — PIS/COFINS",
         value=192.2,
         step=0.1,
         format="%.2f"
     )
     icms = st.number_input(
-        "L5 icms — ICMS",
+        "icms — ICMS",
         value=0.12,
         step=0.01,
         format="%.4f"
     )
     contribuicao_agroindustria_hidratado = st.number_input(
-        "L6 contribuicao_agroindustria — Contribuição Agroindústria",
+        "contribuicao_agroindustria_hidratado — Contribuição Agroindústria",
         value=0.0,
         step=0.01,
         format="%.4f"
     )
     valor_cbio_bruto_hidratado = st.number_input(
-        "L8 valor_cbio_bruto — Valor CBIO Bruto",
+        "valor_cbio_bruto_hidratado — Valor CBIO Bruto",
         value=40.0,
         step=1.0,
         format="%.2f"
     )
     premio_fisico_pvu = st.number_input(
-        "I28 premio_fisico_pvu — Prêmio Físico PVU",
+        "premio_fisico_pvu — Prêmio Físico PVU",
         value=23.0,
         step=1.0,
         format="%.2f"
@@ -218,55 +230,55 @@ with st.sidebar:
     # BLOCO 5 - AÇÚCAR
     st.subheader("BLOCO 5 - Açúcar")
     sugar_ny_fob_cents_lb = st.number_input(
-        "C26 sugar_ny_fob_cents_lb — Sugar NY FOB (cents/lb)",
+        "sugar_ny_fob_cents_lb — Sugar NY FOB (cents/lb)",
         value=15.8,
         step=0.1,
         format="%.2f"
     )
     premio_desconto_cents_lb = st.number_input(
-        "C27 premio_desconto_cents_lb — Prêmio/Desconto (cents/lb)",
+        "premio_desconto_cents_lb — Prêmio/Desconto (cents/lb)",
         value=-0.1,
         step=0.1,
         format="%.2f"
     )
     premio_pol = st.number_input(
-        "C28 premio_pol — Prêmio POL",
+        "premio_pol — Prêmio POL",
         value=0.042,
         step=0.001,
         format="%.4f"
     )
     esalq_brl_saca = st.number_input(
-        "F26 esalq_brl_saca — Esalq BRL/saca",
+        "esalq_brl_saca — Esalq BRL/saca",
         value=115.67,
         step=0.1,
         format="%.2f"
     )
     impostos_esalq = st.number_input(
-        "F27 impostos_esalq — Impostos Esalq",
+        "impostos_esalq — Impostos Esalq",
         value=0.0985,
         step=0.001,
         format="%.4f"
     )
     premio_fisico_fob = st.number_input(
-        "L28 premio_fisico_fob — Prêmio Físico FOB",
+        "premio_fisico_fob — Prêmio Físico FOB",
         value=90.0,
         step=1.0,
         format="%.2f"
     )
     premio_fisico_malha30 = st.number_input(
-        "O28 premio_fisico_malha30 — Prêmio Físico Malha 30",
+        "premio_fisico_malha30 — Prêmio Físico Malha 30",
         value=104.0,
         step=1.0,
         format="%.2f"
     )
     fobizacao_container_brl_ton_o31 = st.number_input(
-        "O31 fobizacao_container_brl_ton — Fobização Container BRL/ton",
+        "fobizacao_container_brl_ton_o31 — Fobização Container BRL/ton",
         value=198.0,
         step=1.0,
         format="%.2f"
     )
     frete_brl_ton_o32 = st.number_input(
-        "O32 frete_brl_ton — Frete BRL/ton",
+        "frete_brl_ton_o32 — Frete BRL/ton",
         value=202.0,
         step=1.0,
         format="%.2f"
@@ -374,90 +386,85 @@ if all_errors:
 # BLOCO 1
 st.header("📦 BLOCO 1 - Anidro Exportação")
 values1 = result_bloco1['values']
-meta1 = result_bloco1['meta']['celulas']
 col1, col2, col3, col4 = st.columns(4)
-col1.metric(f"{meta1.get('preco_liquido_pvu', 'C9')} preco_liquido_pvu — Preço Líquido PVU", fmt_br(values1.get('preco_liquido_pvu')))
-col2.metric(f"{meta1.get('vhp_brl_saca_pvu', 'C10')} vhp_brl_saca_pvu — VHP BRL/saca PVU", fmt_br(values1.get('vhp_brl_saca_pvu')))
-col3.metric(f"{meta1.get('vhp_cents_lb_pvu', 'C11')} vhp_cents_lb_pvu — VHP Cents/lb PVU", fmt_br(values1.get('vhp_cents_lb_pvu')))
-col4.metric(f"{meta1.get('vhp_cents_lb_fob', 'C12')} vhp_cents_lb_fob — VHP Cents/lb FOB", fmt_br(values1.get('vhp_cents_lb_fob')))
+col1.metric("preco_liquido_pvu — Preço Líquido PVU", fmt_br(values1.get('preco_liquido_pvu')))
+col2.metric("vhp_brl_saca_pvu — VHP BRL/saca PVU", fmt_br(values1.get('vhp_brl_saca_pvu')))
+col3.metric("vhp_cents_lb_pvu — VHP Cents/lb PVU", fmt_br(values1.get('vhp_cents_lb_pvu')))
+col4.metric("vhp_cents_lb_fob — VHP Cents/lb FOB", fmt_br(values1.get('vhp_cents_lb_fob')))
 
 # BLOCO 2
 st.header("📦 BLOCO 2 - Hidratado Exportação")
 values2 = result_bloco2['values']
-meta2 = result_bloco2['meta']['celulas']
 col1, col2, col3, col4 = st.columns(4)
-col1.metric(f"{meta2.get('preco_liquido_pvu', 'F8')} preco_liquido_pvu — Preço Líquido PVU", fmt_br(values2.get('preco_liquido_pvu')))
-col2.metric(f"{meta2.get('vhp_brl_saca_pvu', 'F9')} vhp_brl_saca_pvu — VHP BRL/saca PVU", fmt_br(values2.get('vhp_brl_saca_pvu')))
-col3.metric(f"{meta2.get('vhp_cents_lb_pvu', 'F10')} vhp_cents_lb_pvu — VHP Cents/lb PVU", fmt_br(values2.get('vhp_cents_lb_pvu')))
-col4.metric(f"{meta2.get('vhp_cents_lb_fob', 'F11')} vhp_cents_lb_fob — VHP Cents/lb FOB", fmt_br(values2.get('vhp_cents_lb_fob')))
+col1.metric("preco_liquido_pvu — Preço Líquido PVU", fmt_br(values2.get('preco_liquido_pvu')))
+col2.metric("vhp_brl_saca_pvu — VHP BRL/saca PVU", fmt_br(values2.get('vhp_brl_saca_pvu')))
+col3.metric("vhp_cents_lb_pvu — VHP Cents/lb PVU", fmt_br(values2.get('vhp_cents_lb_pvu')))
+col4.metric("vhp_cents_lb_fob — VHP Cents/lb FOB", fmt_br(values2.get('vhp_cents_lb_fob')))
 
 # BLOCO 3
 st.header("📦 BLOCO 3 - Anidro Mercado Interno")
 values3 = result_bloco3['values']
-meta3 = result_bloco3['meta']['celulas']
 col1, col2, col3, col4 = st.columns(4)
-col1.metric(f"{meta3.get('preco_liquido_pvu', 'I6')} preco_liquido_pvu — Preço Líquido PVU", fmt_br(values3.get('preco_liquido_pvu')))
-col2.metric(f"{meta3.get('preco_pvu_mais_cbio', 'I9')} preco_pvu_mais_cbio — PVU + CBIO", fmt_br(values3.get('preco_pvu_mais_cbio')))
-col3.metric(f"{meta3.get('vhp_brl_saco_pvu', 'I14')} vhp_brl_saco_pvu — VHP BRL/saco PVU", fmt_br(values3.get('vhp_brl_saco_pvu')))
-col4.metric(f"{meta3.get('vhp_cents_lb_pvu', 'I15')} vhp_cents_lb_pvu — VHP Cents/lb PVU", fmt_br(values3.get('vhp_cents_lb_pvu')))
+col1.metric("preco_liquido_pvu — Preço Líquido PVU", fmt_br(values3.get('preco_liquido_pvu')))
+col2.metric("preco_pvu_mais_cbio — PVU + CBIO", fmt_br(values3.get('preco_pvu_mais_cbio')))
+col3.metric("vhp_brl_saco_pvu — VHP BRL/saco PVU", fmt_br(values3.get('vhp_brl_saco_pvu')))
+col4.metric("vhp_cents_lb_pvu — VHP Cents/lb PVU", fmt_br(values3.get('vhp_cents_lb_pvu')))
 col1, col2, col3, col4 = st.columns(4)
-col1.metric(f"{meta3.get('vhp_cents_lb_fob', 'I16')} vhp_cents_lb_fob — VHP Cents/lb FOB", fmt_br(values3.get('vhp_cents_lb_fob')))
-col2.metric(f"{meta3.get('premio_anidro_hidratado_liquido', 'I21')} premio_anidro_hidratado_liquido — Prêmio Anidro/Hidratado Líq.", fmt_br(values3.get('premio_anidro_hidratado_liquido')))
-col3.metric(f"{meta3.get('premio_anidro_hidratado_contrato', 'I22')} premio_anidro_hidratado_contrato — Prêmio Anidro/Hidratado Cont.", fmt_br(values3.get('premio_anidro_hidratado_contrato')))
+col1.metric("vhp_cents_lb_fob — VHP Cents/lb FOB", fmt_br(values3.get('vhp_cents_lb_fob')))
+col2.metric("premio_anidro_hidratado_liquido — Prêmio Anidro/Hidratado Líquido", fmt_br(values3.get('premio_anidro_hidratado_liquido')))
+col3.metric("premio_anidro_hidratado_contrato — Prêmio Anidro/Hidratado Contrato", fmt_br(values3.get('premio_anidro_hidratado_contrato')))
 
 # BLOCO 4
 st.header("📦 BLOCO 4 - Hidratado Mercado Interno")
 values4 = result_bloco4['values']
-meta4 = result_bloco4['meta']['celulas']
 col1, col2, col3, col4 = st.columns(4)
-col1.metric(f"{meta4.get('preco_liquido_pvu', 'L7')} preco_liquido_pvu — Preço Líquido PVU", fmt_br(values4.get('preco_liquido_pvu')))
-col2.metric(f"{meta4.get('preco_pvu_mais_cbio', 'L10')} preco_pvu_mais_cbio — PVU + CBIO", fmt_br(values4.get('preco_pvu_mais_cbio')))
-col3.metric(f"{meta4.get('vhp_brl_saco_pvu', 'L14')} vhp_brl_saco_pvu — VHP BRL/saco PVU", fmt_br(values4.get('vhp_brl_saco_pvu')))
-col4.metric(f"{meta4.get('vhp_cents_lb_pvu', 'L15')} vhp_cents_lb_pvu — VHP Cents/lb PVU", fmt_br(values4.get('vhp_cents_lb_pvu')))
+col1.metric("preco_liquido_pvu — Preço Líquido PVU", fmt_br(values4.get('preco_liquido_pvu')))
+col2.metric("preco_pvu_mais_cbio — PVU + CBIO", fmt_br(values4.get('preco_pvu_mais_cbio')))
+col3.metric("vhp_brl_saco_pvu — VHP BRL/saco PVU", fmt_br(values4.get('vhp_brl_saco_pvu')))
+col4.metric("vhp_cents_lb_pvu — VHP Cents/lb PVU", fmt_br(values4.get('vhp_cents_lb_pvu')))
 col1, col2, col3, col4 = st.columns(4)
-col1.metric(f"{meta4.get('vhp_cents_lb_fob', 'L16')} vhp_cents_lb_fob — VHP Cents/lb FOB", fmt_br(values4.get('vhp_cents_lb_fob')))
-col2.metric(f"{meta4.get('cristal_brl_saca_pvu', 'L17')} cristal_brl_saca_pvu — Cristal BRL/saca PVU", fmt_br(values4.get('cristal_brl_saca_pvu')))
-col3.metric(f"{meta4.get('cristal_cents_lb_pvu', 'L18')} cristal_cents_lb_pvu — Cristal Cents/lb PVU", fmt_br(values4.get('cristal_cents_lb_pvu')))
-col4.metric(f"{meta4.get('cristal_cents_lb_fob', 'L19')} cristal_cents_lb_fob — Cristal Cents/lb FOB", fmt_br(values4.get('cristal_cents_lb_fob')))
+col1.metric("vhp_cents_lb_fob — VHP Cents/lb FOB", fmt_br(values4.get('vhp_cents_lb_fob')))
+col2.metric("cristal_brl_saca_pvu — Cristal BRL/saca PVU", fmt_br(values4.get('cristal_brl_saca_pvu')))
+col3.metric("cristal_cents_lb_pvu — Cristal Cents/lb PVU", fmt_br(values4.get('cristal_cents_lb_pvu')))
+col4.metric("cristal_cents_lb_fob — Cristal Cents/lb FOB", fmt_br(values4.get('cristal_cents_lb_fob')))
 
 # BLOCO 5
 st.header("📦 BLOCO 5 - Paridade Açúcar")
 values5 = result_bloco5['values']
-meta5 = result_bloco5['meta']['celulas']
 
 st.subheader("SUB-BLOCO 5.1 - Sugar VHP")
 col1, col2, col3 = st.columns(3)
-col1.metric(f"{meta5.get('vhp_brl_saca_pvu', 'C33')} vhp_brl_saca_pvu — VHP BRL/saca PVU", fmt_br(values5.get('vhp_brl_saca_pvu')))
-col2.metric(f"{meta5.get('vhp_cents_lb_pvu', 'C34')} vhp_cents_lb_pvu — VHP Cents/lb PVU", fmt_br(values5.get('vhp_cents_lb_pvu')))
-col3.metric(f"{meta5.get('vhp_cents_lb_fob', 'C35')} vhp_cents_lb_fob — VHP Cents/lb FOB", fmt_br(values5.get('vhp_cents_lb_fob')))
+col1.metric("vhp_brl_saca_pvu — VHP BRL/saca PVU", fmt_br(values5.get('vhp_brl_saca_pvu')))
+col2.metric("vhp_cents_lb_pvu — VHP Cents/lb PVU", fmt_br(values5.get('vhp_cents_lb_pvu')))
+col3.metric("vhp_cents_lb_fob — VHP Cents/lb FOB", fmt_br(values5.get('vhp_cents_lb_fob')))
 
 st.subheader("SUB-BLOCO 5.2 - Cristal Esalq")
 col1, col2, col3, col4 = st.columns(4)
-col1.metric(f"{meta5.get('vhp_brl_saco_pvu_esalq', 'F33')} vhp_brl_saco_pvu — VHP BRL/saco PVU", fmt_br(values5.get('vhp_brl_saco_pvu_esalq')))
-col2.metric(f"{meta5.get('vhp_cents_lb_pvu_esalq', 'F34')} vhp_cents_lb_pvu — VHP Cents/lb PVU", fmt_br(values5.get('vhp_cents_lb_pvu_esalq')))
-col3.metric(f"{meta5.get('vhp_cents_lb_fob_esalq', 'F35')} vhp_cents_lb_fob — VHP Cents/lb FOB", fmt_br(values5.get('vhp_cents_lb_fob_esalq')))
-col4.metric(f"{meta5.get('cristal_brl_saca_pvu_esalq', 'F36')} cristal_brl_saca_pvu — Cristal BRL/saca PVU", fmt_br(values5.get('cristal_brl_saca_pvu_esalq')))
+col1.metric("vhp_brl_saco_pvu_esalq — VHP BRL/saco PVU", fmt_br(values5.get('vhp_brl_saco_pvu_esalq')))
+col2.metric("vhp_cents_lb_pvu_esalq — VHP Cents/lb PVU", fmt_br(values5.get('vhp_cents_lb_pvu_esalq')))
+col3.metric("vhp_cents_lb_fob_esalq — VHP Cents/lb FOB", fmt_br(values5.get('vhp_cents_lb_fob_esalq')))
+col4.metric("cristal_brl_saca_pvu_esalq — Cristal BRL/saca PVU", fmt_br(values5.get('cristal_brl_saca_pvu_esalq')))
 
 st.subheader("SUB-BLOCO 5.3 - Cristal Mercado Interno")
 col1, col2, col3, col4 = st.columns(4)
-col1.metric(f"{meta5.get('vhp_brl_saco_pvu_mi', 'I33')} vhp_brl_saco_pvu — VHP BRL/saco PVU", fmt_br(values5.get('vhp_brl_saco_pvu_mi')))
-col2.metric(f"{meta5.get('vhp_cents_lb_pvu_mi', 'I34')} vhp_cents_lb_pvu — VHP Cents/lb PVU", fmt_br(values5.get('vhp_cents_lb_pvu_mi')))
-col3.metric(f"{meta5.get('vhp_cents_lb_fob_mi', 'I35')} vhp_cents_lb_fob — VHP Cents/lb FOB", fmt_br(values5.get('vhp_cents_lb_fob_mi')))
-col4.metric(f"{meta5.get('cristal_brl_saca_pvu_mi', 'I36')} cristal_brl_saca_pvu — Cristal BRL/saca PVU", fmt_br(values5.get('cristal_brl_saca_pvu_mi')))
+col1.metric("vhp_brl_saco_pvu_mi — VHP BRL/saco PVU", fmt_br(values5.get('vhp_brl_saco_pvu_mi')))
+col2.metric("vhp_cents_lb_pvu_mi — VHP Cents/lb PVU", fmt_br(values5.get('vhp_cents_lb_pvu_mi')))
+col3.metric("vhp_cents_lb_fob_mi — VHP Cents/lb FOB", fmt_br(values5.get('vhp_cents_lb_fob_mi')))
+col4.metric("cristal_brl_saca_pvu_mi — Cristal BRL/saca PVU", fmt_br(values5.get('cristal_brl_saca_pvu_mi')))
 
 st.subheader("SUB-BLOCO 5.4 - Cristal Exportação")
 col1, col2, col3, col4 = st.columns(4)
-col1.metric(f"{meta5.get('vhp_brl_saco_pvu_exp', 'L33')} vhp_brl_saco_pvu — VHP BRL/saco PVU", fmt_br(values5.get('vhp_brl_saco_pvu_exp')))
-col2.metric(f"{meta5.get('vhp_cents_lb_pvu_exp', 'L34')} vhp_cents_lb_pvu — VHP Cents/lb PVU", fmt_br(values5.get('vhp_cents_lb_pvu_exp')))
-col3.metric(f"{meta5.get('vhp_cents_lb_fob_exp', 'L35')} vhp_cents_lb_fob — VHP Cents/lb FOB", fmt_br(values5.get('vhp_cents_lb_fob_exp')))
-col4.metric(f"{meta5.get('cristal_brl_saca_pvu_exp', 'L36')} cristal_brl_saca_pvu — Cristal BRL/saca PVU", fmt_br(values5.get('cristal_brl_saca_pvu_exp')))
+col1.metric("vhp_brl_saco_pvu_exp — VHP BRL/saco PVU", fmt_br(values5.get('vhp_brl_saco_pvu_exp')))
+col2.metric("vhp_cents_lb_pvu_exp — VHP Cents/lb PVU", fmt_br(values5.get('vhp_cents_lb_pvu_exp')))
+col3.metric("vhp_cents_lb_fob_exp — VHP Cents/lb FOB", fmt_br(values5.get('vhp_cents_lb_fob_exp')))
+col4.metric("cristal_brl_saca_pvu_exp — Cristal BRL/saca PVU", fmt_br(values5.get('cristal_brl_saca_pvu_exp')))
 
 st.subheader("SUB-BLOCO 5.5 - Cristal Exportação Malha 30")
 col1, col2, col3, col4 = st.columns(4)
-col1.metric(f"{meta5.get('vhp_brl_saco_pvu_malha30', 'O33')} vhp_brl_saco_pvu — VHP BRL/saco PVU", fmt_br(values5.get('vhp_brl_saco_pvu_malha30')))
-col2.metric(f"{meta5.get('vhp_cents_lb_pvu_malha30', 'O34')} vhp_cents_lb_pvu — VHP Cents/lb PVU", fmt_br(values5.get('vhp_cents_lb_pvu_malha30')))
-col3.metric(f"{meta5.get('vhp_cents_lb_fob_malha30', 'O35')} vhp_cents_lb_fob — VHP Cents/lb FOB", fmt_br(values5.get('vhp_cents_lb_fob_malha30')))
-col4.metric(f"{meta5.get('cristal_brl_saca_pvu_malha30', 'O36')} cristal_brl_saca_pvu — Cristal BRL/saca PVU", fmt_br(values5.get('cristal_brl_saca_pvu_malha30')))
+col1.metric("vhp_brl_saco_pvu_malha30 — VHP BRL/saco PVU", fmt_br(values5.get('vhp_brl_saco_pvu_malha30')))
+col2.metric("vhp_cents_lb_pvu_malha30 — VHP Cents/lb PVU", fmt_br(values5.get('vhp_cents_lb_pvu_malha30')))
+col3.metric("vhp_cents_lb_fob_malha30 — VHP Cents/lb FOB", fmt_br(values5.get('vhp_cents_lb_fob_malha30')))
+col4.metric("cristal_brl_saca_pvu_malha30 — Cristal BRL/saca PVU", fmt_br(values5.get('cristal_brl_saca_pvu_malha30')))
 
 # ============================================================================
 # TABELAS-RESUMO (BLOCO 6)
