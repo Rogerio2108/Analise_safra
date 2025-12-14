@@ -1249,27 +1249,26 @@ paridade_anidro_int = calc_paridade_anidro_interno(
 )
 
 paridade_hidratado_int = calc_paridade_hidratado_interno(
-    preco_hidratado_interno_com_impostos_brl_m3,
-    pis_cofins_hidratado_brl_m3,
-    aliquota_icms_hidratado,
-    contribuicao_agroindustria_hidratado,  # Agora é percentual, não R$/m³
-    preco_cbio_bruto_brl,
-    cambio_usd_brl,
-    terminal_usd_ton=terminal_usd_ton,
-    frete_brl_ton=frete_export_sugar_brl_ton,
+    preco_hidratado_interno_com_impostos_brl_m3,  # L3
+    pis_cofins_hidratado_brl_m3,  # L4
+    aliquota_icms_hidratado,  # L5
+    contribuicao_agroindustria_hidratado,  # L6 - Agora é percentual, não R$/m³
+    preco_cbio_bruto_brl,  # L8
+    cambio_usd_brl,  # C4
+    terminal_usd_ton=terminal_usd_ton,  # C30
+    frete_brl_ton=frete_export_sugar_brl_ton,  # C32
     premio_fisico_pvu=None,  # I28 - será input do usuário
-    fobizacao_container_brl_ton=fobizacao_container_brl_ton
+    fobizacao_container_brl_ton=fobizacao_container_brl_ton  # L31
 )
 
 # Atualiza prêmios anidro/hidratado se hidratado já foi calculado
-if paridade_hidratado_int.get('preco_liquido_pvu_brl_m3') is not None:
+if paridade_hidratado_int.get('preco_liquido_pvu_brl_m3') is not None and paridade_hidratado_int.get('preco_liquido_pvu_brl_m3') != 0:
     paridade_anidro_int['premio_anidro_hidratado_liquido'] = (
         (paridade_anidro_int['preco_liquido_pvu_brl_m3'] / paridade_hidratado_int['preco_liquido_pvu_brl_m3']) - 1
-        if paridade_hidratado_int['preco_liquido_pvu_brl_m3'] != 0 else None
     )
+if preco_hidratado_interno_com_impostos_brl_m3 != 0:
     paridade_anidro_int['premio_anidro_hidratado_contrato'] = (
         (paridade_anidro_int['preco_liquido_pvu_brl_m3'] / preco_hidratado_interno_com_impostos_brl_m3) - 1
-        if preco_hidratado_interno_com_impostos_brl_m3 != 0 else None
     )
 
 paridade_acucar = calc_paridade_acucar(
