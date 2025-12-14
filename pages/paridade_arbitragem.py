@@ -152,14 +152,16 @@ def formatar_moeda(valor, casas=2):
     """Formata valor com símbolo de moeda usando concatenação para evitar problemas de parsing."""
     if valor is None:
         return "-"
-    valor_formatado = f"{valor:,.{casas}f}"
+    formato = "{:,.%df}" % casas
+    valor_formatado = formato.format(valor)
     return SIMBOLO_REAL + " " + valor_formatado
 
 def formatar_moeda_com_sinal(valor, casas=2):
     """Formata valor com símbolo de moeda e sinal (+/-) usando concatenação."""
     if valor is None:
         return "-"
-    valor_formatado = f"{valor:+,.{casas}f}"
+    formato = "{:+,.%df}" % casas
+    valor_formatado = formato.format(valor)
     return SIMBOLO_REAL + " " + valor_formatado
 
 # ============================================================================
@@ -1452,17 +1454,25 @@ for i, (idx, row) in enumerate(top3.iterrows()):
         vhp_cents_row = row.get(COL_VHP_CENTS, 0)
         if i == 0:
             rota_row = row.get('Rota', 'N/A')
-            msg_1 = "**🥇 " + str(rota_row) + "**\n\n**💰 " + SIMBOLO_REAL + " " + f"{vhp_saca_row:,.2f}" + "/saca**\n\n**💵 " + f"{vhp_cents_row:,.2f}" + " cents/lb**"
+            vhp_saca_str = "{:,.2f}".format(vhp_saca_row)
+            vhp_cents_str = "{:,.2f}".format(vhp_cents_row)
+            msg_1 = "**🥇 " + str(rota_row) + "**\n\n**💰 " + SIMBOLO_REAL + " " + vhp_saca_str + "/saca**\n\n**💵 " + vhp_cents_str + " cents/lb**"
             st.success(msg_1)
         elif i == 1:
             diff_1 = vhp_saca_row - vhp_saca_melhor
             rota_row = row.get('Rota', 'N/A')
-            msg_2 = "**🥈 " + str(rota_row) + "**\n\n**💰 " + SIMBOLO_REAL + " " + f"{vhp_saca_row:,.2f}" + "/saca**\n\n**💵 " + f"{vhp_cents_row:,.2f}" + " cents/lb**\n\nDiferença: " + SIMBOLO_REAL + " " + f"{diff_1:+,.2f}" + "/saca"
+            vhp_saca_str = "{:,.2f}".format(vhp_saca_row)
+            vhp_cents_str = "{:,.2f}".format(vhp_cents_row)
+            diff_1_str = "{:+,.2f}".format(diff_1)
+            msg_2 = "**🥈 " + str(rota_row) + "**\n\n**💰 " + SIMBOLO_REAL + " " + vhp_saca_str + "/saca**\n\n**💵 " + vhp_cents_str + " cents/lb**\n\nDiferença: " + SIMBOLO_REAL + " " + diff_1_str + "/saca"
             st.info(msg_2)
         else:
             diff_2 = vhp_saca_row - vhp_saca_melhor
             rota_row = row.get('Rota', 'N/A')
-            msg_3 = "**🥉 " + str(rota_row) + "**\n\n**💰 " + SIMBOLO_REAL + " " + f"{vhp_saca_row:,.2f}" + "/saca**\n\n**💵 " + f"{vhp_cents_row:,.2f}" + " cents/lb**\n\nDiferença: " + SIMBOLO_REAL + " " + f"{diff_2:+,.2f}" + "/saca"
+            vhp_saca_str = "{:,.2f}".format(vhp_saca_row)
+            vhp_cents_str = "{:,.2f}".format(vhp_cents_row)
+            diff_2_str = "{:+,.2f}".format(diff_2)
+            msg_3 = "**🥉 " + str(rota_row) + "**\n\n**💰 " + SIMBOLO_REAL + " " + vhp_saca_str + "/saca**\n\n**💵 " + vhp_cents_str + " cents/lb**\n\nDiferença: " + SIMBOLO_REAL + " " + diff_2_str + "/saca"
             st.warning(msg_3)
 
 st.divider()
@@ -1472,7 +1482,9 @@ st.markdown("### ✅ **MELHOR OPÇÃO PARA PRODUZIR**")
 
 # Container destacado para a melhor rota
 rota_melhor = melhor_rota.get('Rota', 'N/A')
-mensagem_melhor = "**🎯 " + str(rota_melhor) + "**\n\n**💰 VHP PVU: " + SIMBOLO_REAL + " " + f"{vhp_saca_melhor:,.2f}" + "/saca** | **💵 " + f"{vhp_cents_melhor:,.2f}" + " cents/lb**\n\nEsta é a rota que paga **MAIS** em equivalente VHP. Todas as outras rotas pagam menos."
+vhp_saca_melhor_str = "{:,.2f}".format(vhp_saca_melhor)
+vhp_cents_melhor_str = "{:,.2f}".format(vhp_cents_melhor)
+mensagem_melhor = "**🎯 " + str(rota_melhor) + "**\n\n**💰 VHP PVU: " + SIMBOLO_REAL + " " + vhp_saca_melhor_str + "/saca** | **💵 " + vhp_cents_melhor_str + " cents/lb**\n\nEsta é a rota que paga **MAIS** em equivalente VHP. Todas as outras rotas pagam menos."
 st.success(mensagem_melhor, icon="✅")
 
 # Cards com métricas
@@ -1494,7 +1506,7 @@ with col2:
 with col3:
     st.metric(
         "💵 VHP PVU (cents/lb)",
-        f"{vhp_cents_melhor:,.2f}",
+        "{:,.2f}".format(vhp_cents_melhor),
         delta=None
     )
 with col4:
@@ -1535,10 +1547,10 @@ df_display_decisao = df_display_decisao.rename(columns={
 
 # Formata valores (depois de renomear)
 df_display_decisao['💰 VHP PVU (BRL/saca)'] = df_decisao[COL_VHP_SACA].apply(formatar_moeda)
-df_display_decisao['💵 VHP PVU (cents/lb)'] = df_decisao[COL_VHP_CENTS].apply(lambda x: f"{x:,.2f}")
+df_display_decisao['💵 VHP PVU (cents/lb)'] = df_decisao[COL_VHP_CENTS].apply(lambda x: "{:,.2f}".format(x))
 df_display_decisao['🏭 PVU (BRL/m³)'] = df_decisao[COL_PVU].apply(formatar_moeda)
 df_display_decisao['📉 Diferença Absoluta'] = df_display_decisao['Diferença Absoluta (BRL/saca)'].apply(formatar_moeda_com_sinal)
-df_display_decisao['📊 Diferença %'] = df_display_decisao['Diferença Percentual'].apply(lambda x: f"{x:+.2f}%")
+df_display_decisao['📊 Diferença %'] = df_display_decisao['Diferença Percentual'].apply(lambda x: "{:+.2f}%".format(x))
 
 # Cria mapeamento de rotas para diferenças (para usar na função de highlight)
 mapeamento_diferencas = {}
@@ -1644,7 +1656,7 @@ fig.add_trace(
         y=vhp_cents_clean,
         name='VHP PVU (cents/lb)',
         marker_color=cores,
-        text=[f'{v:,.2f}' for v in vhp_cents_clean],
+        text=["{:,.2f}".format(v) for v in vhp_cents_clean],
         textposition='outside',
         hovertemplate='<b>%{x}</b><br>💵 VHP PVU: %{y:,.2f} cents/lb<extra></extra>',
         showlegend=False,
@@ -1695,9 +1707,11 @@ with tabs[0]:
     vhp_saca_anidro_exp = paridade_anidro_exp['vhp_pvu_brl_saca']
     st.metric("Preço Líquido PVU", formatar_moeda(preco_pvu_anidro_exp) + "/m³")
     st.metric("VHP PVU (BRL/saca)", formatar_moeda(vhp_saca_anidro_exp) + "/saca")
-    st.metric("VHP PVU (cents/lb)", f"{paridade_anidro_exp['vhp_pvu_cents_lb']:,.2f} cents/lb")
+    vhp_cents_anidro_exp = "{:,.2f}".format(paridade_anidro_exp['vhp_pvu_cents_lb'])
+    st.metric("VHP PVU (cents/lb)", vhp_cents_anidro_exp + " cents/lb")
     if paridade_anidro_exp.get('vhp_fob_cents_lb') is not None:
-        st.metric("VHP FOB (cents/lb)", f"{paridade_anidro_exp['vhp_fob_cents_lb']:,.2f} cents/lb")
+        vhp_fob_anidro_exp = "{:,.2f}".format(paridade_anidro_exp['vhp_fob_cents_lb'])
+        st.metric("VHP FOB (cents/lb)", vhp_fob_anidro_exp + " cents/lb")
 
 with tabs[1]:
     st.markdown("### Hidratado Exportação")
@@ -1705,9 +1719,11 @@ with tabs[1]:
     vhp_saca_hidratado_exp = paridade_hidratado_exp['vhp_pvu_brl_saca']
     st.metric("Preço Líquido PVU", formatar_moeda(preco_pvu_hidratado_exp) + "/m³")
     st.metric("VHP PVU (BRL/saca)", formatar_moeda(vhp_saca_hidratado_exp) + "/saca")
-    st.metric("VHP PVU (cents/lb)", f"{paridade_hidratado_exp['vhp_pvu_cents_lb']:,.2f} cents/lb")
+    vhp_cents_hidratado_exp = "{:,.2f}".format(paridade_hidratado_exp['vhp_pvu_cents_lb'])
+    st.metric("VHP PVU (cents/lb)", vhp_cents_hidratado_exp + " cents/lb")
     if paridade_hidratado_exp.get('vhp_fob_cents_lb') is not None:
-        st.metric("VHP FOB (cents/lb)", f"{paridade_hidratado_exp['vhp_fob_cents_lb']:,.2f} cents/lb")
+        vhp_fob_hidratado_exp = "{:,.2f}".format(paridade_hidratado_exp['vhp_fob_cents_lb'])
+        st.metric("VHP FOB (cents/lb)", vhp_fob_hidratado_exp + " cents/lb")
 
 with tabs[2]:
     st.markdown("### Anidro Mercado Interno")
@@ -1722,13 +1738,17 @@ with tabs[2]:
     st.metric("Preço PVU + CBIO", formatar_moeda(preco_pvu_cbio_anidro) + "/m³")
     st.metric("Equivalente Hidratado", formatar_moeda(preco_hid_equiv_anidro) + "/m³")
     st.metric("VHP PVU (BRL/saca)", formatar_moeda(vhp_saca_anidro_int) + "/saca")
-    st.metric("VHP PVU (cents/lb)", f"{paridade_anidro_int['vhp_pvu_cents_lb']:,.2f} cents/lb")
+    vhp_cents_anidro_int = "{:,.2f}".format(paridade_anidro_int['vhp_pvu_cents_lb'])
+    st.metric("VHP PVU (cents/lb)", vhp_cents_anidro_int + " cents/lb")
     if paridade_anidro_int.get('vhp_fob_cents_lb') is not None:
-        st.metric("VHP FOB (cents/lb)", f"{paridade_anidro_int['vhp_fob_cents_lb']:,.2f} cents/lb")
+        vhp_fob_anidro_int = "{:,.2f}".format(paridade_anidro_int['vhp_fob_cents_lb'])
+        st.metric("VHP FOB (cents/lb)", vhp_fob_anidro_int + " cents/lb")
     if paridade_anidro_int.get('premio_anidro_hidratado_liquido') is not None:
-        st.metric("Prêmio Anidro/Hidratado Líquido", f"{paridade_anidro_int['premio_anidro_hidratado_liquido']*100:,.2f}%")
+        premio_liquido = "{:,.2f}".format(paridade_anidro_int['premio_anidro_hidratado_liquido']*100)
+        st.metric("Prêmio Anidro/Hidratado Líquido", premio_liquido + "%")
     if paridade_anidro_int.get('premio_anidro_hidratado_contrato') is not None:
-        st.metric("Prêmio Anidro/Hidratado Contrato", f"{paridade_anidro_int['premio_anidro_hidratado_contrato']*100:,.2f}%")
+        premio_contrato = "{:,.2f}".format(paridade_anidro_int['premio_anidro_hidratado_contrato']*100)
+        st.metric("Prêmio Anidro/Hidratado Contrato", premio_contrato + "%")
 
 with tabs[3]:
     st.markdown("### Hidratado Mercado Interno")
@@ -1747,16 +1767,20 @@ with tabs[3]:
     st.metric("Equivalente Anidro", formatar_moeda(preco_anidro_equiv_hidratado) + "/m³")
     vhp_saca_hidratado = paridade_hidratado_int['vhp_pvu_brl_saca']
     st.metric("VHP PVU (BRL/saca)", formatar_moeda(vhp_saca_hidratado) + "/saca")
-    st.metric("VHP PVU (cents/lb)", f"{paridade_hidratado_int['vhp_pvu_cents_lb']:,.2f} cents/lb")
+    vhp_cents_hidratado_int = "{:,.2f}".format(paridade_hidratado_int['vhp_pvu_cents_lb'])
+    st.metric("VHP PVU (cents/lb)", vhp_cents_hidratado_int + " cents/lb")
     if paridade_hidratado_int.get('vhp_fob_cents_lb') is not None:
-        st.metric("VHP FOB (cents/lb)", f"{paridade_hidratado_int['vhp_fob_cents_lb']:,.2f} cents/lb")
+        vhp_fob_hidratado_int = "{:,.2f}".format(paridade_hidratado_int['vhp_fob_cents_lb'])
+        st.metric("VHP FOB (cents/lb)", vhp_fob_hidratado_int + " cents/lb")
     if paridade_hidratado_int.get('cristal_pvu_brl_saca') is not None:
         cristal_saca_hidratado = paridade_hidratado_int['cristal_pvu_brl_saca']
         st.metric("Equivalente Cristal PVU (BRL/saca)", formatar_moeda(cristal_saca_hidratado) + "/saca")
     if paridade_hidratado_int.get('cristal_pvu_cents_lb') is not None:
-        st.metric("Equivalente Cristal PVU (cents/lb)", f"{paridade_hidratado_int['cristal_pvu_cents_lb']:,.2f} cents/lb")
+        cristal_cents_hidratado = "{:,.2f}".format(paridade_hidratado_int['cristal_pvu_cents_lb'])
+        st.metric("Equivalente Cristal PVU (cents/lb)", cristal_cents_hidratado + " cents/lb")
     if paridade_hidratado_int.get('cristal_fob_cents_lb') is not None:
-        st.metric("Equivalente Cristal FOB (cents/lb)", f"{paridade_hidratado_int['cristal_fob_cents_lb']:,.2f} cents/lb")
+        cristal_fob_hidratado = "{:,.2f}".format(paridade_hidratado_int['cristal_fob_cents_lb'])
+        st.metric("Equivalente Cristal FOB (cents/lb)", cristal_fob_hidratado + " cents/lb")
 
 with tabs[4]:
     st.markdown("### Açúcar")
@@ -1766,8 +1790,10 @@ with tabs[4]:
         st.markdown("**Açúcar VHP Exportação**")
         sugar_vhp_saca = paridade_acucar['sugar_vhp_pvu_brl_saca']
         st.metric("VHP PVU (BRL/saca)", formatar_moeda(sugar_vhp_saca) + "/saca")
-        st.metric("VHP PVU (cents/lb)", f"{paridade_acucar['sugar_vhp_pvu_cents_lb']:,.2f} cents/lb")
-        st.metric("VHP FOB (cents/lb)", f"{paridade_acucar['sugar_vhp_fob_cents_lb']:,.2f} cents/lb")
+        sugar_vhp_cents = "{:,.2f}".format(paridade_acucar['sugar_vhp_pvu_cents_lb'])
+        st.metric("VHP PVU (cents/lb)", sugar_vhp_cents + " cents/lb")
+        sugar_vhp_fob = "{:,.2f}".format(paridade_acucar['sugar_vhp_fob_cents_lb'])
+        st.metric("VHP FOB (cents/lb)", sugar_vhp_fob + " cents/lb")
         st.divider()
     
     # Cristal Exportação
@@ -1777,26 +1803,34 @@ with tabs[4]:
         if paridade_acucar.get('sugar_export_vhp_pvu_brl_saca') is not None:
             sugar_export_vhp_saca = paridade_acucar['sugar_export_vhp_pvu_brl_saca']
             st.metric("VHP PVU (BRL/saca)", formatar_moeda(sugar_export_vhp_saca) + "/saca")
-            st.metric("VHP PVU (cents/lb)", f"{paridade_acucar['sugar_export_vhp_pvu_cents_lb']:,.2f} cents/lb")
-            st.metric("VHP FOB (cents/lb)", f"{paridade_acucar.get('sugar_export_vhp_fob_cents_lb', 0):,.2f} cents/lb")
+            sugar_export_vhp_cents = "{:,.2f}".format(paridade_acucar['sugar_export_vhp_pvu_cents_lb'])
+            st.metric("VHP PVU (cents/lb)", sugar_export_vhp_cents + " cents/lb")
+            sugar_export_vhp_fob = "{:,.2f}".format(paridade_acucar.get('sugar_export_vhp_fob_cents_lb', 0))
+            st.metric("VHP FOB (cents/lb)", sugar_export_vhp_fob + " cents/lb")
         if paridade_acucar.get('sugar_export_cristal_pvu_brl_saca') is not None:
             sugar_export_cristal_saca = paridade_acucar['sugar_export_cristal_pvu_brl_saca']
             st.metric("Cristal PVU (BRL/saca)", formatar_moeda(sugar_export_cristal_saca) + "/saca")
-            st.metric("Cristal PVU (cents/lb)", f"{paridade_acucar['sugar_export_cristal_pvu_cents_lb']:,.2f} cents/lb")
-            st.metric("Cristal FOB (cents/lb)", f"{paridade_acucar.get('sugar_export_cristal_fob_cents_lb', 0):,.2f} cents/lb")
+            sugar_export_cristal_cents = "{:,.2f}".format(paridade_acucar['sugar_export_cristal_pvu_cents_lb'])
+            st.metric("Cristal PVU (cents/lb)", sugar_export_cristal_cents + " cents/lb")
+            sugar_export_cristal_fob = "{:,.2f}".format(paridade_acucar.get('sugar_export_cristal_fob_cents_lb', 0))
+            st.metric("Cristal FOB (cents/lb)", sugar_export_cristal_fob + " cents/lb")
     with col_a2:
         st.markdown("**Cristal Exportação Malha 30**")
         if paridade_acucar.get('sugar_malha30_vhp_pvu_brl_saca') is not None:
             vhp_saca_malha30 = paridade_acucar['sugar_malha30_vhp_pvu_brl_saca']
             st.metric("VHP PVU (BRL/saca)", formatar_moeda(vhp_saca_malha30) + "/saca")
-            st.metric("VHP PVU (cents/lb)", f"{paridade_acucar['sugar_malha30_vhp_pvu_cents_lb']:,.2f} cents/lb")
-            st.metric("VHP FOB (cents/lb)", f"{paridade_acucar.get('sugar_malha30_vhp_fob_cents_lb', 0):,.2f} cents/lb")
+            sugar_malha30_vhp_cents = "{:,.2f}".format(paridade_acucar['sugar_malha30_vhp_pvu_cents_lb'])
+            st.metric("VHP PVU (cents/lb)", sugar_malha30_vhp_cents + " cents/lb")
+            sugar_malha30_vhp_fob = "{:,.2f}".format(paridade_acucar.get('sugar_malha30_vhp_fob_cents_lb', 0))
+            st.metric("VHP FOB (cents/lb)", sugar_malha30_vhp_fob + " cents/lb")
         if paridade_acucar.get('sugar_malha30_cristal_pvu_brl_saca') is not None:
             cristal_saca_malha30 = paridade_acucar['sugar_malha30_cristal_pvu_brl_saca']
             cristal_cents_malha30 = paridade_acucar['sugar_malha30_cristal_pvu_cents_lb']
             st.metric("Cristal PVU (BRL/saca)", formatar_moeda(cristal_saca_malha30) + "/saca")
-            st.metric("Cristal PVU (cents/lb)", f"{cristal_cents_malha30:,.2f} cents/lb")
-            st.metric("Cristal FOB (cents/lb)", f"{paridade_acucar.get('sugar_malha30_cristal_fob_cents_lb', 0):,.2f} cents/lb")
+            cristal_cents_malha30_str = "{:,.2f}".format(cristal_cents_malha30)
+            st.metric("Cristal PVU (cents/lb)", cristal_cents_malha30_str + " cents/lb")
+            cristal_fob_malha30 = "{:,.2f}".format(paridade_acucar.get('sugar_malha30_cristal_fob_cents_lb', 0))
+            st.metric("Cristal FOB (cents/lb)", cristal_fob_malha30 + " cents/lb")
     
     st.divider()
     st.markdown("**Mercado Interno**")
