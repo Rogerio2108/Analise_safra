@@ -1055,14 +1055,14 @@ with col_int1:
         key="icms_anidro",
         help="Alíquota de ICMS sobre o anidro (geralmente 0% para anidro)"
     ) / 100
-    contribuicao_agroindustria_anidro_brl_m3 = st.number_input(
-        "Contribuição Agroindústria Anidro (R$/m³)",
+    contribuicao_agroindustria_anidro = st.number_input(
+        "Contribuição Agroindústria Anidro (%)",
         value=0.0,
-        step=1.0,
+        step=0.1,
         format="%.2f",
         key="contrib_anidro",
-        help="Contribuição para agroindústria (geralmente 0)"
-    )
+        help="Contribuição para agroindústria em percentual (geralmente 0%)"
+    ) / 100
 
 with col_int2:
     st.markdown("**Hidratado Mercado Interno**")
@@ -1091,14 +1091,14 @@ with col_int2:
         key="icms_hidratado",
         help="Alíquota de ICMS sobre o hidratado (geralmente 12%)"
     ) / 100
-    contribuicao_agroindustria_hidratado_brl_m3 = st.number_input(
-        "Contribuição Agroindústria Hidratado (R$/m³)",
+    contribuicao_agroindustria_hidratado = st.number_input(
+        "Contribuição Agroindústria Hidratado (%)",
         value=0.0,
-        step=1.0,
+        step=0.1,
         format="%.2f",
         key="contrib_hidratado",
-        help="Contribuição para agroindústria (geralmente 0)"
-    )
+        help="Contribuição para agroindústria em percentual (geralmente 0%)"
+    ) / 100
 
 st.divider()
 
@@ -1220,7 +1220,9 @@ paridade_anidro_exp = calc_paridade_anidro_exportacao(
     frete_porto_usina_brl_m3_anidro,
     terminal_brl_m3_anidro,
     supervisao_doc_brl_m3_anidro,
-    custos_adicionais_demurrage_brl_m3_anidro
+    custos_adicionais_demurrage_brl_m3_anidro,
+    terminal_usd_ton=terminal_usd_ton,
+    frete_brl_ton=frete_export_sugar_brl_ton
 )
 
 paridade_hidratado_exp = calc_paridade_hidratado_exportacao(
@@ -1229,59 +1231,62 @@ paridade_hidratado_exp = calc_paridade_hidratado_exportacao(
     frete_porto_usina_brl_m3_hidratado,
     terminal_brl_m3_hidratado,
     supervisao_doc_brl_m3_hidratado,
-    custos_adicionais_demurrage_brl_m3_hidratado
+    custos_adicionais_demurrage_brl_m3_hidratado,
+    terminal_usd_ton=terminal_usd_ton,
+    frete_brl_ton=frete_export_sugar_brl_ton
 )
 
 paridade_anidro_int = calc_paridade_anidro_interno(
     preco_anidro_interno_com_impostos_brl_m3,
     pis_cofins_anidro_brl_m3,
-    aliquota_icms_anidro,
-    contribuicao_agroindustria_anidro_brl_m3,
+    contribuicao_agroindustria_anidro,  # Agora é percentual, não R$/m³
     preco_cbio_bruto_brl,
-    aliquota_ir_cbio,
-    aliquota_pis_cofins_cbio,
-    share_produtor_cbio,
-    fc_anidro
-)
-# Adiciona conversões para USD/ton e cents/lb
-paridade_anidro_int['vhp_pvu_usd_ton'] = converter_brl_saca_para_usd_ton(
-    paridade_anidro_int['vhp_pvu_brl_saca'], cambio_usd_brl
-)
-paridade_anidro_int['vhp_pvu_cents_lb'] = converter_usd_ton_para_cents_lb(
-    paridade_anidro_int['vhp_pvu_usd_ton']
+    cambio_usd_brl,
+    terminal_usd_ton=terminal_usd_ton,
+    frete_brl_ton=frete_export_sugar_brl_ton,
+    preco_hidratado_pvu_brl_m3=None,  # Será calculado depois
+    preco_hidratado_com_impostos_brl_m3=None  # Será calculado depois
 )
 
 paridade_hidratado_int = calc_paridade_hidratado_interno(
     preco_hidratado_interno_com_impostos_brl_m3,
     pis_cofins_hidratado_brl_m3,
     aliquota_icms_hidratado,
-    contribuicao_agroindustria_hidratado_brl_m3,
+    contribuicao_agroindustria_hidratado,  # Agora é percentual, não R$/m³
     preco_cbio_bruto_brl,
-    aliquota_ir_cbio,
-    aliquota_pis_cofins_cbio,
-    share_produtor_cbio,
-    fc_hidratado
+    cambio_usd_brl,
+    terminal_usd_ton=terminal_usd_ton,
+    frete_brl_ton=frete_export_sugar_brl_ton,
+    premio_fisico_pvu=None,  # I28 - será input do usuário
+    fobizacao_container_brl_ton=fobizacao_container_brl_ton
 )
-# Adiciona conversões para USD/ton e cents/lb
-paridade_hidratado_int['vhp_pvu_usd_ton'] = converter_brl_saca_para_usd_ton(
-    paridade_hidratado_int['vhp_pvu_brl_saca'], cambio_usd_brl
-)
-paridade_hidratado_int['vhp_pvu_cents_lb'] = converter_usd_ton_para_cents_lb(
-    paridade_hidratado_int['vhp_pvu_usd_ton']
-)
+
+# Atualiza prêmios anidro/hidratado se hidratado já foi calculado
+if paridade_hidratado_int.get('preco_liquido_pvu_brl_m3') is not None:
+    paridade_anidro_int['premio_anidro_hidratado_liquido'] = (
+        (paridade_anidro_int['preco_liquido_pvu_brl_m3'] / paridade_hidratado_int['preco_liquido_pvu_brl_m3']) - 1
+        if paridade_hidratado_int['preco_liquido_pvu_brl_m3'] != 0 else None
+    )
+    paridade_anidro_int['premio_anidro_hidratado_contrato'] = (
+        (paridade_anidro_int['preco_liquido_pvu_brl_m3'] / preco_hidratado_interno_com_impostos_brl_m3) - 1
+        if preco_hidratado_interno_com_impostos_brl_m3 != 0 else None
+    )
 
 paridade_acucar = calc_paridade_acucar(
     ny_sugar_fob_cents_lb,
-    premio_fisico_usd_ton_cristal,
-    premio_fisico_usd_ton_malha30,
+    premio_desconto_cents_lb,
+    premio_pol_percent / 100,  # Converter percentual para decimal
     cambio_usd_brl,
-    fobizacao_container_brl_ton,
+    terminal_usd_ton,
     frete_export_sugar_brl_ton,
-    preco_sugar_cristal_esalq_brl_saca,
-    preco_sugar_cristal_export_malha30_brl_saca,
-    terminal_usd_ton=terminal_usd_ton,
-    premio_pol_percent=premio_pol_percent,
-    premio_desconto_cents_lb=premio_desconto_cents_lb
+    esalq_brl_saca=preco_sugar_cristal_esalq_brl_saca,
+    impostos_esalq=IMPOSTOS_ESALQ,
+    premio_fisico_pvu=None,  # I28 - será input do usuário
+    premio_fisico_fob=premio_fisico_usd_ton_cristal,
+    premio_fisico_malha30=premio_fisico_usd_ton_malha30,
+    fobizacao_container_brl_ton=fobizacao_container_brl_ton,
+    frete_export_brl_ton=frete_export_sugar_brl_ton,
+    custo_cristal_vs_vhp=CUSTO_CRISTAL_VS_VHP_D17
 )
 
 # ============================================================================
