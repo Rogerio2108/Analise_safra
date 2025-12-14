@@ -1236,16 +1236,18 @@ paridade_hidratado_exp = calc_paridade_hidratado_exportacao(
     frete_brl_ton=frete_export_sugar_brl_ton
 )
 
+# Calcula paridade anidro interno
+preco_hidratado_com_impostos_para_anidro = preco_hidratado_interno_com_impostos_brl_m3
 paridade_anidro_int = calc_paridade_anidro_interno(
     preco_anidro_interno_com_impostos_brl_m3,
     pis_cofins_anidro_brl_m3,
-    contribuicao_agroindustria_anidro,  # Agora é percentual, não R$/m³
+    contribuicao_agroindustria_anidro,
     preco_cbio_bruto_brl,
     cambio_usd_brl,
     terminal_usd_ton=terminal_usd_ton,
     frete_brl_ton=frete_export_sugar_brl_ton,
-    preco_hidratado_pvu_brl_m3=None,  # Será calculado depois (L11)
-    preco_hidratado_com_impostos_brl_m3=preco_hidratado_interno_com_impostos_brl_m3  # L7
+    preco_hidratado_pvu_brl_m3=None,
+    preco_hidratado_com_impostos_brl_m3=preco_hidratado_com_impostos_para_anidro
 )
 
 paridade_hidratado_int = calc_paridade_hidratado_interno(
@@ -1765,5 +1767,6 @@ with tabs[4]:
     with col_a3:
         st.metric("SUGAR Cristal Esalq", f"R$ {preco_sugar_cristal_esalq_brl_saca:,.2f}/saca")
     with col_a4:
-        st.metric("Cristal Exportação Malha 30", f"R$ {preco_sugar_cristal_export_malha30_brl_saca:,.2f}/saca")
+        preco_malha30_str = f"R$ {preco_sugar_cristal_export_malha30_brl_saca:,.2f}/saca"
+        st.metric("Cristal Exportação Malha 30", preco_malha30_str)
 
