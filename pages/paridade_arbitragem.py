@@ -20,8 +20,8 @@ import numpy as np
 # ============================================================================
 
 # Símbolo de moeda (definido como constante para evitar problemas com $ em f-strings no Python 3.13)
-# Usando string raw para evitar problemas de parsing
-SIMBOLO_REAL = r"R$"
+# Usando apenas "BRL" para evitar problemas de parsing
+SIMBOLO_REAL = "BRL"
 
 # Conversão açúcar
 SACAS_POR_TON = 20
@@ -189,7 +189,7 @@ def calc_paridade_anidro_exportacao(
         supervisao_doc_brl_m3: C7 - Supervisão/Doc BRL/m³
         custos_adicionais_demurrage_brl_m3: C8 - Custos Adicionais/Demurrage BRL/m³
         terminal_usd_ton: C30 - Terminal USD/ton (do bloco açúcar, para cálculo FOB)
-        frete_brl_ton: C32 - Frete R$/ton (do bloco açúcar, para cálculo FOB)
+        frete_brl_ton: C32 - Frete BRL/ton (do bloco açúcar, para cálculo FOB)
     
     Returns:
         dict: Dicionário com todos os valores calculados (C9-C12)
@@ -244,7 +244,7 @@ def calc_paridade_hidratado_exportacao(
         supervisao_doc_brl_m3: F7 (=C7) - Supervisão/Doc BRL/m³
         custos_adicionais_demurrage_brl_m3: Não usado na planilha original
         terminal_usd_ton: C30 - Terminal USD/ton (do bloco açúcar, para cálculo FOB)
-        frete_brl_ton: C32 - Frete R$/ton (do bloco açúcar, para cálculo FOB)
+        frete_brl_ton: C32 - Frete BRL/ton (do bloco açúcar, para cálculo FOB)
     
     Returns:
         dict: Dicionário com todos os valores calculados (F8-F11)
@@ -300,7 +300,7 @@ def calc_paridade_anidro_interno(
         valor_cbio_bruto_brl: I7 - Valor CBIO bruto BRL/CBIO
         cambio_usd_brl: C4 - Câmbio USD/BRL
         terminal_usd_ton: C30 - Terminal USD/ton (do bloco açúcar, para cálculos FOB)
-        frete_brl_ton: C32 - Frete R$/ton (do bloco açúcar, para cálculos FOB)
+        frete_brl_ton: C32 - Frete BRL/ton (do bloco açúcar, para cálculos FOB)
         preco_hidratado_pvu_brl_m3: L11 - Preço hidratado PVU (para I21)
         preco_hidratado_com_impostos_brl_m3: L7 - Preço hidratado com impostos (para I22)
     
@@ -415,9 +415,9 @@ def calc_paridade_hidratado_interno(
         valor_cbio_bruto_brl: L8 - Valor CBIO bruto BRL/CBIO
         cambio_usd_brl: C4 - Câmbio USD/BRL
         terminal_usd_ton: C30 - Terminal USD/ton (do bloco açúcar, para cálculos FOB)
-        frete_brl_ton: C32 - Frete R$/ton (do bloco açúcar, para cálculos FOB)
+        frete_brl_ton: C32 - Frete BRL/ton (do bloco açúcar, para cálculos FOB)
         premio_fisico_pvu: I28 - Prêmio físico PVU (para L18, L19)
-        fobizacao_container_brl_ton: L31 - Fobização container R$/ton (para L19)
+        fobizacao_container_brl_ton: L31 - Fobização container BRL/ton (para L19)
     
     Returns:
         dict: Dicionário com todos os valores calculados (L7-L19)
@@ -521,14 +521,14 @@ def calc_paridade_acucar(
         premio_pol: C28 - Prêmio POL (percentual, ex: 0.042 = 4.2%)
         cambio_usd_brl: C31 (=C4) - Câmbio USD/BRL
         terminal_usd_ton: C30 - Terminal USD/ton
-        frete_brl_ton: C32 - Frete R$/ton
-        esalq_brl_saca: F26 - Preço Esalq R$/saca
+        frete_brl_ton: C32 - Frete BRL/ton
+        esalq_brl_saca: F26 - Preço Esalq BRL/saca
         impostos_esalq: F27 - Impostos Esalq (percentual)
         premio_fisico_pvu: I28 - Prêmio físico PVU (para Merc. Interno)
         premio_fisico_fob: L28 - Prêmio físico FOB (para Exportação)
         premio_fisico_malha30: O28 - Prêmio físico Malha 30
-        fobizacao_container_brl_ton: L31 - Fobização container R$/ton
-        frete_export_brl_ton: L32 - Frete exportação R$/ton
+        fobizacao_container_brl_ton: L31 - Fobização container BRL/ton
+        frete_export_brl_ton: L32 - Frete exportação BRL/ton
         custo_cristal_vs_vhp: Custo diferencial Cristal vs VHP
     
     Returns:
@@ -913,7 +913,7 @@ with col1:
         help="Taxa de câmbio atual USD para BRL. Usado para converter preços de exportação."
     )
     preco_cbio_bruto_brl = st.number_input(
-        "Preço CBIO Bruto (R$/CBIO)",
+        "Preço CBIO Bruto (BRL/CBIO)",
         value=50.0,
         step=1.0,
         format="%.2f",
@@ -963,7 +963,7 @@ with col_exp1:
         help="Preço do etanol anidro FOB (Free On Board) em USD por m³"
     )
     frete_porto_usina_brl_m3_anidro = st.number_input(
-        "Frete Porto-Usina (R$/m³)",
+        "Frete Porto-Usina (BRL/m³)",
         value=50.0,
         step=5.0,
         format="%.2f",
@@ -971,7 +971,7 @@ with col_exp1:
         help="Custo de frete do porto até a usina"
     )
     terminal_brl_m3_anidro = st.number_input(
-        "Terminal (R$/m³)",
+        "Terminal (BRL/m³)",
         value=30.0,
         step=5.0,
         format="%.2f",
@@ -979,7 +979,7 @@ with col_exp1:
         help="Custo de terminal/armazenagem"
     )
     supervisao_doc_brl_m3_anidro = st.number_input(
-        "Supervisão/Doc (R$/m³)",
+        "Supervisão/Doc (BRL/m³)",
         value=10.0,
         step=1.0,
         format="%.2f",
@@ -987,7 +987,7 @@ with col_exp1:
         help="Custo de supervisão e documentação"
     )
     custos_adicionais_demurrage_brl_m3_anidro = st.number_input(
-        "Custos Adicionais/Demurrage (R$/m³)",
+        "Custos Adicionais/Demurrage (BRL/m³)",
         value=0.0,
         step=5.0,
         format="%.2f",
@@ -1007,7 +1007,7 @@ with col_exp2:
         help="Preço do etanol hidratado FOB (Free On Board) em USD por m³"
     )
     frete_porto_usina_brl_m3_hidratado = st.number_input(
-        "Frete Porto-Usina (R$/m³)",
+        "Frete Porto-Usina (BRL/m³)",
         value=50.0,
         step=5.0,
         format="%.2f",
@@ -1015,7 +1015,7 @@ with col_exp2:
         help="Custo de frete do porto até a usina"
     )
     terminal_brl_m3_hidratado = st.number_input(
-        "Terminal (R$/m³)",
+        "Terminal (BRL/m³)",
         value=30.0,
         step=5.0,
         format="%.2f",
@@ -1023,7 +1023,7 @@ with col_exp2:
         help="Custo de terminal/armazenagem"
     )
     supervisao_doc_brl_m3_hidratado = st.number_input(
-        "Supervisão/Doc (R$/m³)",
+        "Supervisão/Doc (BRL/m³)",
         value=10.0,
         step=1.0,
         format="%.2f",
@@ -1031,7 +1031,7 @@ with col_exp2:
         help="Custo de supervisão e documentação"
     )
     custos_adicionais_demurrage_brl_m3_hidratado = st.number_input(
-        "Custos Adicionais/Demurrage (R$/m³)",
+        "Custos Adicionais/Demurrage (BRL/m³)",
         value=0.0,
         step=5.0,
         format="%.2f",
@@ -1050,7 +1050,7 @@ with col_int1:
     st.markdown("**Anidro Mercado Interno**")
     st.caption("💡 Preço com impostos, descontados impostos e adicionado CBIO líquido")
     preco_anidro_interno_com_impostos_brl_m3 = st.number_input(
-        "Preço Anidro com Impostos (R$/m³)",
+        "Preço Anidro com Impostos (BRL/m³)",
         value=2500.0,
         step=50.0,
         format="%.2f",
@@ -1058,7 +1058,7 @@ with col_int1:
         help="Preço de venda do anidro no mercado interno incluindo todos os impostos"
     )
     pis_cofins_anidro_brl_m3 = st.number_input(
-        "PIS/COFINS Anidro (R$/m³)",
+        "PIS/COFINS Anidro (BRL/m³)",
         value=200.0,
         step=10.0,
         format="%.2f",
@@ -1084,9 +1084,9 @@ with col_int1:
 
 with col_int2:
     st.markdown("**Hidratado Mercado Interno**")
-    st.caption("💡 Preço com impostos, descontados impostos, adicionado CBIO líquido e crédito tributário (0,24 R$/L)")
+    st.caption("💡 Preço com impostos, descontados impostos, adicionado CBIO líquido e crédito tributário (0,24 BRL/L)")
     preco_hidratado_interno_com_impostos_brl_m3 = st.number_input(
-        "Preço Hidratado com Impostos (R$/m³)",
+        "Preço Hidratado com Impostos (BRL/m³)",
         value=2300.0,
         step=50.0,
         format="%.2f",
@@ -1094,7 +1094,7 @@ with col_int2:
         help="Preço de venda do hidratado no mercado interno incluindo todos os impostos"
     )
     pis_cofins_hidratado_brl_m3 = st.number_input(
-        "PIS/COFINS Hidratado (R$/m³)",
+        "PIS/COFINS Hidratado (BRL/m³)",
         value=180.0,
         step=10.0,
         format="%.2f",
@@ -1128,7 +1128,7 @@ col_acucar1, col_acucar2 = st.columns(2)
 with col_acucar1:
     st.caption("💡 Preços de açúcar no mercado interno")
     preco_sugar_cristal_esalq_brl_saca = st.number_input(
-        "SUGAR Cristal Esalq (R$/saca)",
+        "SUGAR Cristal Esalq (BRL/saca)",
         value=120.0,
         step=1.0,
         format="%.2f",
@@ -1136,7 +1136,7 @@ with col_acucar1:
         help="Preço do açúcar cristal no mercado interno (Esalq)"
     )
     preco_sugar_cristal_export_malha30_brl_saca = st.number_input(
-        "Cristal Exportação Malha 30 (R$/saca)",
+        "Cristal Exportação Malha 30 (BRL/saca)",
         value=115.0,
         step=1.0,
         format="%.2f",
@@ -1147,7 +1147,7 @@ with col_acucar1:
 with col_acucar2:
     st.caption("💡 Custos logísticos para exportação de açúcar")
     fobizacao_container_brl_ton = st.number_input(
-        "Fobização Container (R$/ton)",
+        "Fobização Container (BRL/ton)",
         value=198.0,
         step=5.0,
         format="%.2f",
@@ -1155,7 +1155,7 @@ with col_acucar2:
         help="Custo de fobização (preparação para exportação em container)"
     )
     frete_export_sugar_brl_ton = st.number_input(
-        "Frete Exportação Açúcar (R$/ton)",
+        "Frete Exportação Açúcar (BRL/ton)",
         value=202.0,
         step=10.0,
         format="%.2f",
@@ -1211,18 +1211,18 @@ with st.expander("ℹ️ Como interpretar os resultados", expanded=True):
     st.markdown("""
     **📌 Conceito Principal:**
     
-    Todas as rotas (etanol anidro, hidratado, açúcar) foram convertidas para **equivalente VHP (R$/saca)** 
+    Todas as rotas (etanol anidro, hidratado, açúcar) foram convertidas para **equivalente VHP (BRL/saca)** 
     para que você possa comparar diretamente qual rota paga mais.
     
     **🔢 O que significa cada valor:**
     
-    - **💰 VHP PVU (R$/saca):** Quanto você recebe por saca de açúcar equivalente. **ESTE É O VALOR PRINCIPAL PARA DECISÃO** - quanto maior, melhor!
+    - **💰 VHP PVU (BRL/saca):** Quanto você recebe por saca de açúcar equivalente. **ESTE É O VALOR PRINCIPAL PARA DECISÃO** - quanto maior, melhor!
     - **💵 VHP PVU (cents/lb):** Mesmo valor em cents por libra (padrão internacional de mercado)
-    - **🏭 PVU (R$/m³):** Preço líquido na usina por m³ de etanol (só para rotas de etanol)
-    - **📉 Diferença Absoluta:** Quanto a menos (em R$/saca) que cada rota paga comparado à melhor
+    - **🏭 PVU (BRL/m³):** Preço líquido na usina por m³ de etanol (só para rotas de etanol)
+    - **📉 Diferença Absoluta:** Quanto a menos (em BRL/saca) que cada rota paga comparado à melhor
     - **📊 Diferença %:** Percentual a menos que cada rota paga comparado à melhor
     
-    **✅ Decisão:** A rota com **MAIOR VHP PVU (R$/saca)** é a mais atrativa financeiramente.
+    **✅ Decisão:** A rota com **MAIOR VHP PVU (BRL/saca)** é a mais atrativa financeiramente.
     """)
 
 # Atualiza fatores globais temporariamente
@@ -1315,7 +1315,7 @@ paridade_acucar = calc_paridade_acucar(
 st.divider()
 st.header("🎯 Decisão: Qual Rota Produzir?")
 st.markdown("""
-**📌 Objetivo:** Todas as rotas foram convertidas para **equivalente VHP (R$/saca)** para comparação direta.
+**📌 Objetivo:** Todas as rotas foram convertidas para **equivalente VHP (BRL/saca)** para comparação direta.
 Quanto maior o valor, mais atrativa é a rota.
 """)
 
@@ -1325,34 +1325,34 @@ dados_decisao = []
 # Etanol Exportação
 dados_decisao.append({
     'Rota': '🚢 Anidro Exportação',
-    'VHP PVU (R$/saca)': paridade_anidro_exp['vhp_pvu_brl_saca'],
+    'VHP PVU (BRL/saca)': paridade_anidro_exp['vhp_pvu_brl_saca'],
     'VHP PVU (cents/lb)': paridade_anidro_exp['vhp_pvu_cents_lb'],
-    'PVU (R$/m³)': paridade_anidro_exp['preco_liquido_pvu_brl_m3'],
+    'PVU (BRL/m³)': paridade_anidro_exp['preco_liquido_pvu_brl_m3'],
     'Tipo': 'Etanol'
 })
 
 dados_decisao.append({
     'Rota': '🚢 Hidratado Exportação',
-    'VHP PVU (R$/saca)': paridade_hidratado_exp['vhp_pvu_brl_saca'],
+    'VHP PVU (BRL/saca)': paridade_hidratado_exp['vhp_pvu_brl_saca'],
     'VHP PVU (cents/lb)': paridade_hidratado_exp['vhp_pvu_cents_lb'],
-    'PVU (R$/m³)': paridade_hidratado_exp['preco_liquido_pvu_brl_m3'],
+    'PVU (BRL/m³)': paridade_hidratado_exp['preco_liquido_pvu_brl_m3'],
     'Tipo': 'Etanol'
 })
 
 # Etanol Mercado Interno
 dados_decisao.append({
     'Rota': '🏠 Anidro Mercado Interno',
-    'VHP PVU (R$/saca)': paridade_anidro_int['vhp_pvu_brl_saca'],
+    'VHP PVU (BRL/saca)': paridade_anidro_int['vhp_pvu_brl_saca'],
     'VHP PVU (cents/lb)': paridade_anidro_int['vhp_pvu_cents_lb'],
-    'PVU (R$/m³)': paridade_anidro_int['preco_pvu_mais_cbio_brl_m3'],
+    'PVU (BRL/m³)': paridade_anidro_int['preco_pvu_mais_cbio_brl_m3'],
     'Tipo': 'Etanol'
 })
 
 dados_decisao.append({
     'Rota': '🏠 Hidratado Mercado Interno',
-    'VHP PVU (R$/saca)': paridade_hidratado_int['vhp_pvu_brl_saca'],
+    'VHP PVU (BRL/saca)': paridade_hidratado_int['vhp_pvu_brl_saca'],
     'VHP PVU (cents/lb)': paridade_hidratado_int['vhp_pvu_cents_lb'],
-    'PVU (R$/m³)': paridade_hidratado_int['preco_pvu_cbio_credito_brl_m3'],
+    'PVU (BRL/m³)': paridade_hidratado_int['preco_pvu_cbio_credito_brl_m3'],
     'Tipo': 'Etanol'
 })
 
@@ -1360,9 +1360,9 @@ dados_decisao.append({
 if paridade_acucar.get('sugar_vhp_pvu_brl_saca') is not None:
     dados_decisao.append({
         'Rota': '🍬 Açúcar VHP Exportação',
-        'VHP PVU (R$/saca)': paridade_acucar['sugar_vhp_pvu_brl_saca'],
+        'VHP PVU (BRL/saca)': paridade_acucar['sugar_vhp_pvu_brl_saca'],
         'VHP PVU (cents/lb)': paridade_acucar['sugar_vhp_pvu_cents_lb'],
-        'PVU (R$/m³)': None,
+        'PVU (BRL/m³)': None,
         'Tipo': 'Açúcar'
     })
 
@@ -1377,9 +1377,9 @@ if paridade_acucar.get('sugar_export_cristal_pvu_brl_saca') is not None:
     if vhp_saca_export is not None and vhp_cents_export is not None:
         dados_decisao.append({
             'Rota': '🍬 Açúcar Cristal Exportação',
-            'VHP PVU (R$/saca)': vhp_saca_export,
+            'VHP PVU (BRL/saca)': vhp_saca_export,
             'VHP PVU (cents/lb)': vhp_cents_export,
-            'PVU (R$/m³)': None,
+            'PVU (BRL/m³)': None,
             'Tipo': 'Açúcar'
         })
 
@@ -1393,9 +1393,9 @@ if paridade_acucar.get('sugar_malha30_cristal_pvu_brl_saca') is not None:
     if vhp_saca_malha30 is not None and vhp_cents_malha30 is not None:
         dados_decisao.append({
             'Rota': '🍬 Açúcar Cristal Exportação Malha 30',
-            'VHP PVU (R$/saca)': vhp_saca_malha30,
+            'VHP PVU (BRL/saca)': vhp_saca_malha30,
             'VHP PVU (cents/lb)': vhp_cents_malha30,
-            'PVU (R$/m³)': None,
+            'PVU (BRL/m³)': None,
             'Tipo': 'Açúcar'
         })
 
@@ -1403,11 +1403,11 @@ if paridade_acucar.get('sugar_malha30_cristal_pvu_brl_saca') is not None:
 if preco_sugar_cristal_esalq_brl_saca is not None and preco_sugar_cristal_esalq_brl_saca > 0:
     dados_decisao.append({
         'Rota': '🍬 SUGAR Cristal Esalq',
-        'VHP PVU (R$/saca)': preco_sugar_cristal_esalq_brl_saca,
+        'VHP PVU (BRL/saca)': preco_sugar_cristal_esalq_brl_saca,
         'VHP PVU (cents/lb)': converter_usd_ton_para_cents_lb(
             converter_brl_saca_para_usd_ton(preco_sugar_cristal_esalq_brl_saca, cambio_usd_brl)
         ),
-        'PVU (R$/m³)': None,
+        'PVU (BRL/m³)': None,
         'Tipo': 'Açúcar'
     })
 
@@ -1415,20 +1415,20 @@ if preco_sugar_cristal_esalq_brl_saca is not None and preco_sugar_cristal_esalq_
 if preco_sugar_cristal_export_malha30_brl_saca is not None and preco_sugar_cristal_export_malha30_brl_saca > 0:
     dados_decisao.append({
         'Rota': '🍬 Cristal Exportação Malha 30',
-        'VHP PVU (R$/saca)': preco_sugar_cristal_export_malha30_brl_saca,
+        'VHP PVU (BRL/saca)': preco_sugar_cristal_export_malha30_brl_saca,
         'VHP PVU (cents/lb)': converter_usd_ton_para_cents_lb(
             converter_brl_saca_para_usd_ton(preco_sugar_cristal_export_malha30_brl_saca, cambio_usd_brl)
         ),
-        'PVU (R$/m³)': None,
+        'PVU (BRL/m³)': None,
         'Tipo': 'Açúcar'
     })
 
 df_decisao = pd.DataFrame(dados_decisao)
 
 # Define nomes de colunas como variáveis para evitar problemas com $ em Python 3.13
-COL_VHP_SACA = 'VHP PVU (R$/saca)'
+COL_VHP_SACA = 'VHP PVU (BRL/saca)'
 COL_VHP_CENTS = 'VHP PVU (cents/lb)'
-COL_PVU = 'PVU (R$/m³)'
+COL_PVU = 'PVU (BRL/m³)'
 
 df_decisao = df_decisao.sort_values(COL_VHP_SACA, ascending=False)
 
@@ -1486,7 +1486,7 @@ with col1:
     )
 with col2:
     st.metric(
-        "💰 VHP PVU (R$/saca)",
+        "💰 VHP PVU (BRL/saca)",
         formatar_moeda(vhp_saca_melhor),
         delta="Melhor opção",
         delta_color="normal"
@@ -1498,10 +1498,10 @@ with col3:
         delta=None
     )
 with col4:
-    pvu_melhor = melhor_rota.get('PVU (R$/m³)')
+    pvu_melhor = melhor_rota.get('PVU (BRL/m³)')
     if pvu_melhor is not None:
         st.metric(
-            "🏭 PVU (R$/m³)",
+            "🏭 PVU (BRL/m³)",
             formatar_moeda(pvu_melhor),
             delta=None
         )
@@ -1521,7 +1521,7 @@ st.markdown("### 📊 Comparação Completa de Todas as Rotas")
 df_display_decisao = df_decisao.copy()
 
 # Adiciona coluna de diferença percentual e absoluta (mantém valores numéricos para highlight)
-df_display_decisao['Diferença Absoluta (R$/saca)'] = df_decisao[COL_VHP_SACA].apply(
+df_display_decisao['Diferença Absoluta (BRL/saca)'] = df_decisao[COL_VHP_SACA].apply(
     lambda x: x - vhp_saca_melhor
 )
 df_display_decisao['Diferença Percentual'] = df_decisao[COL_VHP_SACA].apply(
@@ -1534,10 +1534,10 @@ df_display_decisao = df_display_decisao.rename(columns={
 })
 
 # Formata valores (depois de renomear)
-df_display_decisao['💰 VHP PVU (R$/saca)'] = df_decisao[COL_VHP_SACA].apply(formatar_moeda)
+df_display_decisao['💰 VHP PVU (BRL/saca)'] = df_decisao[COL_VHP_SACA].apply(formatar_moeda)
 df_display_decisao['💵 VHP PVU (cents/lb)'] = df_decisao[COL_VHP_CENTS].apply(lambda x: f"{x:,.2f}")
-df_display_decisao['🏭 PVU (R$/m³)'] = df_decisao[COL_PVU].apply(formatar_moeda)
-df_display_decisao['📉 Diferença Absoluta'] = df_display_decisao['Diferença Absoluta (R$/saca)'].apply(formatar_moeda_com_sinal)
+df_display_decisao['🏭 PVU (BRL/m³)'] = df_decisao[COL_PVU].apply(formatar_moeda)
+df_display_decisao['📉 Diferença Absoluta'] = df_display_decisao['Diferença Absoluta (BRL/saca)'].apply(formatar_moeda_com_sinal)
 df_display_decisao['📊 Diferença %'] = df_display_decisao['Diferença Percentual'].apply(lambda x: f"{x:+.2f}%")
 
 # Cria mapeamento de rotas para diferenças (para usar na função de highlight)
@@ -1545,7 +1545,7 @@ mapeamento_diferencas = {}
 for idx, row in df_display_decisao.iterrows():
     rota = row['📍 Rota']
     mapeamento_diferencas[rota] = {
-        'diff_abs': row['Diferença Absoluta (R$/saca)'],
+        'diff_abs': row['Diferença Absoluta (BRL/saca)'],
         'diff_pct': row['Diferença Percentual']
     }
 
@@ -1579,7 +1579,7 @@ def highlight_best_and_format(row):
     return styles
 
 # Seleciona colunas para exibição
-colunas_exibir = ['📍 Rota', '💰 VHP PVU (R$/saca)', '💵 VHP PVU (cents/lb)', '🏭 PVU (R$/m³)', '📉 Diferença Absoluta', '📊 Diferença %']
+colunas_exibir = ['📍 Rota', '💰 VHP PVU (BRL/saca)', '💵 VHP PVU (cents/lb)', '🏭 PVU (BRL/m³)', '📉 Diferença Absoluta', '📊 Diferença %']
 
 st.dataframe(
     df_display_decisao[colunas_exibir].style.apply(highlight_best_and_format, axis=1),
@@ -1589,9 +1589,9 @@ st.dataframe(
 
 st.caption("""
 **💡 Como interpretar:**
-- **💰 VHP PVU (R$/saca):** Quanto você recebe por saca de açúcar equivalente (quanto maior, melhor) - **ESTE É O VALOR PRINCIPAL PARA DECISÃO**
+- **💰 VHP PVU (BRL/saca):** Quanto você recebe por saca de açúcar equivalente (quanto maior, melhor) - **ESTE É O VALOR PRINCIPAL PARA DECISÃO**
 - **💵 VHP PVU (cents/lb):** Mesmo valor em cents por libra (padrão internacional)
-- **🏭 PVU (R$/m³):** Preço líquido na usina por m³ de etanol (só para etanol)
+- **🏭 PVU (BRL/m³):** Preço líquido na usina por m³ de etanol (só para etanol)
 - **📉 Diferença vs Melhor:** Quanto cada rota paga a menos que a melhor opção (valores negativos indicam que paga menos)
 """)
 
@@ -1618,7 +1618,7 @@ cores = [cores_por_tipo[tipo] for tipo in tipos]
 # Gráfico de barras comparativo
 fig = make_subplots(
     rows=1, cols=2,
-    subplot_titles=('💰 VHP PVU (R$/saca) - Quanto você recebe por saca', '💵 VHP PVU (cents/lb) - Padrão internacional'),
+    subplot_titles=('💰 VHP PVU (BRL/saca) - Quanto você recebe por saca', '💵 VHP PVU (cents/lb) - Padrão internacional'),
     horizontal_spacing=0.15
 )
 
@@ -1627,7 +1627,7 @@ fig.add_trace(
     go.Bar(
         x=rotas_clean,
         y=vhp_saca_clean,
-        name='VHP PVU (R$/saca)',
+        name='VHP PVU (BRL/saca)',
         marker_color=cores,
         text=[formatar_moeda(v) for v in vhp_saca_clean],
         textposition='outside',
@@ -1694,7 +1694,7 @@ with tabs[0]:
     preco_pvu_anidro_exp = paridade_anidro_exp['preco_liquido_pvu_brl_m3']
     vhp_saca_anidro_exp = paridade_anidro_exp['vhp_pvu_brl_saca']
     st.metric("Preço Líquido PVU", formatar_moeda(preco_pvu_anidro_exp) + "/m³")
-    st.metric("VHP PVU (R$/saca)", formatar_moeda(vhp_saca_anidro_exp) + "/saca")
+    st.metric("VHP PVU (BRL/saca)", formatar_moeda(vhp_saca_anidro_exp) + "/saca")
     st.metric("VHP PVU (cents/lb)", f"{paridade_anidro_exp['vhp_pvu_cents_lb']:,.2f} cents/lb")
     if paridade_anidro_exp.get('vhp_fob_cents_lb') is not None:
         st.metric("VHP FOB (cents/lb)", f"{paridade_anidro_exp['vhp_fob_cents_lb']:,.2f} cents/lb")
@@ -1704,7 +1704,7 @@ with tabs[1]:
     preco_pvu_hidratado_exp = paridade_hidratado_exp['preco_liquido_pvu_brl_m3']
     vhp_saca_hidratado_exp = paridade_hidratado_exp['vhp_pvu_brl_saca']
     st.metric("Preço Líquido PVU", formatar_moeda(preco_pvu_hidratado_exp) + "/m³")
-    st.metric("VHP PVU (R$/saca)", formatar_moeda(vhp_saca_hidratado_exp) + "/saca")
+    st.metric("VHP PVU (BRL/saca)", formatar_moeda(vhp_saca_hidratado_exp) + "/saca")
     st.metric("VHP PVU (cents/lb)", f"{paridade_hidratado_exp['vhp_pvu_cents_lb']:,.2f} cents/lb")
     if paridade_hidratado_exp.get('vhp_fob_cents_lb') is not None:
         st.metric("VHP FOB (cents/lb)", f"{paridade_hidratado_exp['vhp_fob_cents_lb']:,.2f} cents/lb")
@@ -1721,7 +1721,7 @@ with tabs[2]:
     vhp_saca_anidro_int = paridade_anidro_int['vhp_pvu_brl_saca']
     st.metric("Preço PVU + CBIO", formatar_moeda(preco_pvu_cbio_anidro) + "/m³")
     st.metric("Equivalente Hidratado", formatar_moeda(preco_hid_equiv_anidro) + "/m³")
-    st.metric("VHP PVU (R$/saca)", formatar_moeda(vhp_saca_anidro_int) + "/saca")
+    st.metric("VHP PVU (BRL/saca)", formatar_moeda(vhp_saca_anidro_int) + "/saca")
     st.metric("VHP PVU (cents/lb)", f"{paridade_anidro_int['vhp_pvu_cents_lb']:,.2f} cents/lb")
     if paridade_anidro_int.get('vhp_fob_cents_lb') is not None:
         st.metric("VHP FOB (cents/lb)", f"{paridade_anidro_int['vhp_fob_cents_lb']:,.2f} cents/lb")
@@ -1746,13 +1746,13 @@ with tabs[3]:
     st.metric("Preço PVU + CBIO + Crédito", formatar_moeda(preco_pvu_cbio_credito_hidratado) + "/m³")
     st.metric("Equivalente Anidro", formatar_moeda(preco_anidro_equiv_hidratado) + "/m³")
     vhp_saca_hidratado = paridade_hidratado_int['vhp_pvu_brl_saca']
-    st.metric("VHP PVU (R$/saca)", formatar_moeda(vhp_saca_hidratado) + "/saca")
+    st.metric("VHP PVU (BRL/saca)", formatar_moeda(vhp_saca_hidratado) + "/saca")
     st.metric("VHP PVU (cents/lb)", f"{paridade_hidratado_int['vhp_pvu_cents_lb']:,.2f} cents/lb")
     if paridade_hidratado_int.get('vhp_fob_cents_lb') is not None:
         st.metric("VHP FOB (cents/lb)", f"{paridade_hidratado_int['vhp_fob_cents_lb']:,.2f} cents/lb")
     if paridade_hidratado_int.get('cristal_pvu_brl_saca') is not None:
         cristal_saca_hidratado = paridade_hidratado_int['cristal_pvu_brl_saca']
-        st.metric("Equivalente Cristal PVU (R$/saca)", formatar_moeda(cristal_saca_hidratado) + "/saca")
+        st.metric("Equivalente Cristal PVU (BRL/saca)", formatar_moeda(cristal_saca_hidratado) + "/saca")
     if paridade_hidratado_int.get('cristal_pvu_cents_lb') is not None:
         st.metric("Equivalente Cristal PVU (cents/lb)", f"{paridade_hidratado_int['cristal_pvu_cents_lb']:,.2f} cents/lb")
     if paridade_hidratado_int.get('cristal_fob_cents_lb') is not None:
@@ -1765,7 +1765,7 @@ with tabs[4]:
     if paridade_acucar.get('sugar_vhp_pvu_brl_saca') is not None:
         st.markdown("**Açúcar VHP Exportação**")
         sugar_vhp_saca = paridade_acucar['sugar_vhp_pvu_brl_saca']
-        st.metric("VHP PVU (R$/saca)", formatar_moeda(sugar_vhp_saca) + "/saca")
+        st.metric("VHP PVU (BRL/saca)", formatar_moeda(sugar_vhp_saca) + "/saca")
         st.metric("VHP PVU (cents/lb)", f"{paridade_acucar['sugar_vhp_pvu_cents_lb']:,.2f} cents/lb")
         st.metric("VHP FOB (cents/lb)", f"{paridade_acucar['sugar_vhp_fob_cents_lb']:,.2f} cents/lb")
         st.divider()
@@ -1776,25 +1776,25 @@ with tabs[4]:
         st.markdown("**Cristal Exportação**")
         if paridade_acucar.get('sugar_export_vhp_pvu_brl_saca') is not None:
             sugar_export_vhp_saca = paridade_acucar['sugar_export_vhp_pvu_brl_saca']
-            st.metric("VHP PVU (R$/saca)", formatar_moeda(sugar_export_vhp_saca) + "/saca")
+            st.metric("VHP PVU (BRL/saca)", formatar_moeda(sugar_export_vhp_saca) + "/saca")
             st.metric("VHP PVU (cents/lb)", f"{paridade_acucar['sugar_export_vhp_pvu_cents_lb']:,.2f} cents/lb")
             st.metric("VHP FOB (cents/lb)", f"{paridade_acucar.get('sugar_export_vhp_fob_cents_lb', 0):,.2f} cents/lb")
         if paridade_acucar.get('sugar_export_cristal_pvu_brl_saca') is not None:
             sugar_export_cristal_saca = paridade_acucar['sugar_export_cristal_pvu_brl_saca']
-            st.metric("Cristal PVU (R$/saca)", formatar_moeda(sugar_export_cristal_saca) + "/saca")
+            st.metric("Cristal PVU (BRL/saca)", formatar_moeda(sugar_export_cristal_saca) + "/saca")
             st.metric("Cristal PVU (cents/lb)", f"{paridade_acucar['sugar_export_cristal_pvu_cents_lb']:,.2f} cents/lb")
             st.metric("Cristal FOB (cents/lb)", f"{paridade_acucar.get('sugar_export_cristal_fob_cents_lb', 0):,.2f} cents/lb")
     with col_a2:
         st.markdown("**Cristal Exportação Malha 30**")
         if paridade_acucar.get('sugar_malha30_vhp_pvu_brl_saca') is not None:
             vhp_saca_malha30 = paridade_acucar['sugar_malha30_vhp_pvu_brl_saca']
-            st.metric("VHP PVU (R$/saca)", formatar_moeda(vhp_saca_malha30) + "/saca")
+            st.metric("VHP PVU (BRL/saca)", formatar_moeda(vhp_saca_malha30) + "/saca")
             st.metric("VHP PVU (cents/lb)", f"{paridade_acucar['sugar_malha30_vhp_pvu_cents_lb']:,.2f} cents/lb")
             st.metric("VHP FOB (cents/lb)", f"{paridade_acucar.get('sugar_malha30_vhp_fob_cents_lb', 0):,.2f} cents/lb")
         if paridade_acucar.get('sugar_malha30_cristal_pvu_brl_saca') is not None:
             cristal_saca_malha30 = paridade_acucar['sugar_malha30_cristal_pvu_brl_saca']
             cristal_cents_malha30 = paridade_acucar['sugar_malha30_cristal_pvu_cents_lb']
-            st.metric("Cristal PVU (R$/saca)", formatar_moeda(cristal_saca_malha30) + "/saca")
+            st.metric("Cristal PVU (BRL/saca)", formatar_moeda(cristal_saca_malha30) + "/saca")
             st.metric("Cristal PVU (cents/lb)", f"{cristal_cents_malha30:,.2f} cents/lb")
             st.metric("Cristal FOB (cents/lb)", f"{paridade_acucar.get('sugar_malha30_cristal_fob_cents_lb', 0):,.2f} cents/lb")
     
