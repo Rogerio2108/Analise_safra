@@ -20,7 +20,8 @@ import numpy as np
 # ============================================================================
 
 # Símbolo de moeda (definido como constante para evitar problemas com $ em f-strings no Python 3.13)
-SIMBOLO_REAL = "R$"
+# Usando concatenação para evitar problemas de parsing
+SIMBOLO_REAL = "R" + "$"
 
 # Conversão açúcar
 SACAS_POR_TON = 20
@@ -42,7 +43,7 @@ FC_ANIDRO_LITROS_POR_CBIO = 712.40
 FC_HIDRATADO_LITROS_POR_CBIO = 749.75
 
 # Crédito tributário hidratado
-CREDITO_TRIBUTARIO_HIDRATADO_POR_LITRO = 0.24  # R$/L
+CREDITO_TRIBUTARIO_HIDRATADO_POR_LITRO = 0.24  # BRL/L
 
 # Fatores de conversão etanol → VHP (EXATOS da planilha Excel)
 FATOR_M3_ANIDRO_EXPORT_PARA_SACA_VHP = 32.669  # m³ anidro export → saca VHP (C10 = C9/32.669)
@@ -78,7 +79,7 @@ def calcular_cbio_liquido_por_m3(
     Calcula valor líquido do CBIO por m³ de etanol.
     
     Args:
-        preco_cbio_bruto_brl: Preço bruto do CBIO (R$/CBIO)
+        preco_cbio_bruto_brl: Preço bruto do CBIO (BRL/CBIO)
         tipo: 'anidro' ou 'hidratado'
         aliquota_ir: Alíquota IR (usa padrão se None)
         aliquota_pis_cofins: Alíquota PIS/COFINS (usa padrão se None)
@@ -87,7 +88,7 @@ def calcular_cbio_liquido_por_m3(
         fc_hidratado: Fator conversão hidratado (usa padrão se None)
     
     Returns:
-        float: Valor líquido do CBIO por m³ (R$/m³)
+        float: Valor líquido do CBIO por m³ (BRL/m³)
     """
     # Usa valores padrão se não fornecidos
     if aliquota_ir is None:
@@ -140,11 +141,11 @@ def converter_usd_ton_para_cents_lb(usd_ton):
     return usd_ton / FATOR_CWT_POR_TON
 
 def converter_brl_saca_para_usd_ton(brl_saca, cambio_usd_brl):
-    """Converte R$/saca para USD/ton."""
+    """Converte BRL/saca para USD/ton."""
     return (brl_saca * SACAS_POR_TON) / cambio_usd_brl
 
 def converter_usd_ton_para_brl_saca(usd_ton, cambio_usd_brl):
-    """Converte USD/ton para R$/saca."""
+    """Converte USD/ton para BRL/saca."""
     return (usd_ton * cambio_usd_brl) / SACAS_POR_TON
 
 # ============================================================================
@@ -169,10 +170,10 @@ def calc_paridade_anidro_exportacao(
     Args:
         preco_anidro_fob_usd_m3: C3 - Preço FOB USD/m³
         cambio_usd_brl: C4 - Câmbio USD/BRL
-        frete_porto_usina_brl_m3: C5 - Frete Porto-Usina R$/m³
-        terminal_brl_m3: C6 - Terminal R$/m³
-        supervisao_doc_brl_m3: C7 - Supervisão/Doc R$/m³
-        custos_adicionais_demurrage_brl_m3: C8 - Custos Adicionais/Demurrage R$/m³
+        frete_porto_usina_brl_m3: C5 - Frete Porto-Usina BRL/m³
+        terminal_brl_m3: C6 - Terminal BRL/m³
+        supervisao_doc_brl_m3: C7 - Supervisão/Doc BRL/m³
+        custos_adicionais_demurrage_brl_m3: C8 - Custos Adicionais/Demurrage BRL/m³
         terminal_usd_ton: C30 - Terminal USD/ton (do bloco açúcar, para cálculo FOB)
         frete_brl_ton: C32 - Frete R$/ton (do bloco açúcar, para cálculo FOB)
     
@@ -224,9 +225,9 @@ def calc_paridade_hidratado_exportacao(
     Args:
         preco_hidratado_fob_usd_m3: F3 - Preço FOB USD/m³
         cambio_usd_brl: F4 (=C4) - Câmbio USD/BRL
-        frete_porto_usina_brl_m3: F5 (=C5) - Frete Porto-Usina R$/m³
-        terminal_brl_m3: F6 (=C6) - Terminal R$/m³
-        supervisao_doc_brl_m3: F7 (=C7) - Supervisão/Doc R$/m³
+        frete_porto_usina_brl_m3: F5 (=C5) - Frete Porto-Usina BRL/m³
+        terminal_brl_m3: F6 (=C6) - Terminal BRL/m³
+        supervisao_doc_brl_m3: F7 (=C7) - Supervisão/Doc BRL/m³
         custos_adicionais_demurrage_brl_m3: Não usado na planilha original
         terminal_usd_ton: C30 - Terminal USD/ton (do bloco açúcar, para cálculo FOB)
         frete_brl_ton: C32 - Frete R$/ton (do bloco açúcar, para cálculo FOB)
@@ -265,7 +266,7 @@ def calc_paridade_hidratado_exportacao(
 def calc_paridade_anidro_interno(
     preco_anidro_com_impostos_brl_m3,  # I3
     pis_cofins_brl_m3,  # I4
-    contribuicao_agroindustria,  # I5 (percentual, não R$/m³)
+    contribuicao_agroindustria,  # I5 (percentual, não BRL/m³)
     valor_cbio_bruto_brl,  # I7
     cambio_usd_brl,  # C4 (para cálculos de equivalentes)
     terminal_usd_ton=None,  # C30 (para cálculos FOB)
@@ -279,10 +280,10 @@ def calc_paridade_anidro_interno(
     Calcula paridade de etanol anidro para mercado interno seguindo EXATAMENTE as fórmulas da planilha Excel.
     
     Args:
-        preco_anidro_com_impostos_brl_m3: I3 - Preço com impostos R$/m³
-        pis_cofins_brl_m3: I4 - PIS/COFINS R$/m³
-        contribuicao_agroindustria: I5 - Contribuição Agroindústria (percentual, não R$/m³)
-        valor_cbio_bruto_brl: I7 - Valor CBIO bruto R$/CBIO
+        preco_anidro_com_impostos_brl_m3: I3 - Preço com impostos BRL/m³
+        pis_cofins_brl_m3: I4 - PIS/COFINS BRL/m³
+        contribuicao_agroindustria: I5 - Contribuição Agroindústria (percentual, não BRL/m³)
+        valor_cbio_bruto_brl: I7 - Valor CBIO bruto BRL/CBIO
         cambio_usd_brl: C4 - Câmbio USD/BRL
         terminal_usd_ton: C30 - Terminal USD/ton (do bloco açúcar, para cálculos FOB)
         frete_brl_ton: C32 - Frete R$/ton (do bloco açúcar, para cálculos FOB)
@@ -379,7 +380,7 @@ def calc_paridade_hidratado_interno(
     preco_hidratado_rp_com_impostos_brl_m3,  # L3
     pis_cofins_brl_m3,  # L4
     aliquota_icms,  # L5 (percentual)
-    contribuicao_agroindustria,  # L6 (percentual, não R$/m³)
+    contribuicao_agroindustria,  # L6 (percentual, não BRL/m³)
     valor_cbio_bruto_brl,  # L8
     cambio_usd_brl,  # C4 (para cálculos de equivalentes)
     terminal_usd_ton=None,  # C30 (para cálculos FOB)
@@ -393,11 +394,11 @@ def calc_paridade_hidratado_interno(
     Calcula paridade de etanol hidratado para mercado interno seguindo EXATAMENTE as fórmulas da planilha Excel.
     
     Args:
-        preco_hidratado_rp_com_impostos_brl_m3: L3 - Preço RP com impostos R$/m³
-        pis_cofins_brl_m3: L4 - PIS/COFINS R$/m³
+        preco_hidratado_rp_com_impostos_brl_m3: L3 - Preço RP com impostos BRL/m³
+        pis_cofins_brl_m3: L4 - PIS/COFINS BRL/m³
         aliquota_icms: L5 - Alíquota ICMS (percentual)
-        contribuicao_agroindustria: L6 - Contribuição Agroindústria (percentual, não R$/m³)
-        valor_cbio_bruto_brl: L8 - Valor CBIO bruto R$/CBIO
+        contribuicao_agroindustria: L6 - Contribuição Agroindústria (percentual, não BRL/m³)
+        valor_cbio_bruto_brl: L8 - Valor CBIO bruto BRL/CBIO
         cambio_usd_brl: C4 - Câmbio USD/BRL
         terminal_usd_ton: C30 - Terminal USD/ton (do bloco açúcar, para cálculos FOB)
         frete_brl_ton: C32 - Frete R$/ton (do bloco açúcar, para cálculos FOB)
@@ -426,7 +427,7 @@ def calc_paridade_hidratado_interno(
     
     # L12: Preço Liquido PVU + CBIO + Credito Trib. (0,24)
     # Excel: =L10+240
-    credito_tributario_brl_m3 = 240  # 0.24 R$/L * 1000 L/m³
+    credito_tributario_brl_m3 = 240  # 0.24 BRL/L * 1000 L/m³
     preco_pvu_cbio_credito_brl_m3 = preco_pvu_mais_cbio_brl_m3 + credito_tributario_brl_m3
     
     # L14: Equivalente VHP BRL/saco PVU
@@ -590,7 +591,7 @@ def calc_paridade_acucar(
         # Excel: =I27+I28
         sugar_pvu_usd_ton = sugar_ny_usd_ton + premio_fisico_pvu
         
-        # I30: Sugar PVU R$/ton
+        # I30: Sugar PVU BRL/ton
         # Excel: =I29*C4
         sugar_pvu_brl_ton = sugar_pvu_usd_ton * cambio_usd_brl
         
@@ -642,7 +643,7 @@ def calc_paridade_acucar(
         # Excel: =L27+L28
         sugar_fob_usd_ton_export = sugar_ny_usd_ton_export + premio_fisico_fob
         
-        # L30: Sugar FOB R$/ton
+        # L30: Sugar FOB BRL/ton
         # Excel: =L29*C4
         sugar_fob_brl_ton_export = sugar_fob_usd_ton_export * cambio_usd_brl
         
@@ -692,7 +693,7 @@ def calc_paridade_acucar(
         # Excel: =O27+O28
         sugar_fob_usd_ton_malha30 = sugar_ny_usd_ton_malha30 + premio_fisico_malha30
         
-        # O30: Sugar FOB R$/ton
+        # O30: Sugar FOB BRL/ton
         # Excel: =O29*C4
         sugar_fob_brl_ton_malha30 = sugar_fob_usd_ton_malha30 * cambio_usd_brl
         
@@ -770,14 +771,13 @@ def calc_paridade_acucar(
 # A configuração da página é feita no arquivo principal
 
 st.title("📊 Análise de Paridades e Arbitragem")
-st.markdown("""
-**Objetivo:** Comparar todas as rotas de produção (etanol anidro, hidratado, açúcar) 
-convertendo tudo para **equivalente VHP (R$/saca e cents/lb)** para identificar qual 
+objetivo_texto = """**Objetivo:** Comparar todas as rotas de produção (etanol anidro, hidratado, açúcar) 
+convertendo tudo para **equivalente VHP (BRL/saca e cents/lb)** para identificar qual 
 rota é mais atrativa financeiramente.
 
 **Como usar:** Insira os preços de mercado abaixo e veja na seção **"🎯 Decisão: Qual Rota Produzir?"** 
-qual opção paga mais.
-""")
+qual opção paga mais."""
+st.markdown(objetivo_texto)
 
 # ============================================================================
 # SIDEBAR - PARÂMETROS CONFIGURÁVEIS
@@ -1258,7 +1258,7 @@ paridade_hidratado_int = calc_paridade_hidratado_interno(
     preco_hidratado_interno_com_impostos_brl_m3,  # L3
     pis_cofins_hidratado_brl_m3,  # L4
     aliquota_icms_hidratado,  # L5
-    contribuicao_agroindustria_hidratado,  # L6 - Agora é percentual, não R$/m³
+    contribuicao_agroindustria_hidratado,  # L6 - Agora é percentual, não BRL/m³
     preco_cbio_bruto_brl,  # L8
     cambio_usd_brl,  # C4
     terminal_usd_ton=terminal_usd_ton,  # C30
@@ -1305,7 +1305,7 @@ st.markdown("""
 Quanto maior o valor, mais atrativa é a rota.
 """)
 
-# Prepara dados para comparação focada no VHP PVU (R$/saca) - métrica principal
+# Prepara dados para comparação focada no VHP PVU (BRL/saca) - métrica principal
 dados_decisao = []
 
 # Etanol Exportação
@@ -1484,9 +1484,10 @@ st.success(mensagem_melhor, icon="✅")
 # Cards com métricas
 col1, col2, col3, col4 = st.columns(4)
 with col1:
+    rota_melhor_display = melhor_rota.get('Rota', 'N/A')
     st.metric(
         "📍 Rota",
-        melhor_rota['Rota'],
+        rota_melhor_display,
         delta=None
     )
 with col2:
@@ -1558,7 +1559,8 @@ for idx, row in df_display_decisao.iterrows():
 def highlight_best_and_format(row):
     styles = []
     rota_atual = row['📍 Rota']
-    is_best = rota_atual == melhor_rota['Rota']
+    rota_melhor_rota = melhor_rota.get('Rota', 'N/A')
+    is_best = rota_atual == rota_melhor_rota
     
     # Pega diferenças do mapeamento (mais seguro que acessar DataFrame)
     diffs = mapeamento_diferencas.get(rota_atual, {'diff_abs': 0, 'diff_pct': 0})
@@ -1626,7 +1628,7 @@ fig = make_subplots(
     horizontal_spacing=0.15
 )
 
-# Gráfico R$/saca
+# Gráfico BRL/saca
 fig.add_trace(
     go.Bar(
         x=rotas_clean,
