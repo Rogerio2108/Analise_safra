@@ -1666,7 +1666,7 @@ fig.add_trace(
         marker_color=cores,
         text=[formatar_moeda(v) for v in vhp_saca_clean],
         textposition='outside',
-        hovertemplate='<b>%{x}</b><br>💰 VHP PVU: BRL %{y:,.2f}/saca<extra></extra>',
+        hovertemplate=r'<b>%{x}</b><br>💰 VHP PVU: BRL %{y:,.2f}/saca<extra></extra>',
         marker_line=dict(color='white', width=2)
     ),
     row=1, col=1
@@ -1681,7 +1681,7 @@ fig.add_trace(
         marker_color=cores,
         text=["{:,.2f}".format(v) for v in vhp_cents_clean],
         textposition='outside',
-        hovertemplate='<b>%{x}</b><br>💵 VHP PVU: %{y:,.2f} cents/lb<extra></extra>',
+        hovertemplate=r'<b>%{x}</b><br>💵 VHP PVU: %{y:,.2f} cents/lb<extra></extra>',
         showlegend=False,
         marker_line=dict(color='white', width=2)
     ),
