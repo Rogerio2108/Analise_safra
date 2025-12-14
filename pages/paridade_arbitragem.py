@@ -41,12 +41,22 @@ FC_HIDRATADO_LITROS_POR_CBIO = 749.75
 # Crédito tributário hidratado
 CREDITO_TRIBUTARIO_HIDRATADO_POR_LITRO = 0.24  # R$/L
 
-# Fatores de conversão etanol → VHP (parametrizados)
-# Valores iniciais - devem ser calibrados com a planilha
-FATOR_M3_ANIDRO_EXPORT_PARA_SACA_VHP = 32.669  # m³ anidro export → saca VHP
-FATOR_M3_HIDRATADO_EXPORT_PARA_SACA_VHP = 32.669  # m³ hidratado export → saca VHP
-FATOR_M3_ANIDRO_INTERNO_PARA_SACA_VHP = 32.669  # m³ anidro interno → saca VHP
-FATOR_M3_HIDRATADO_INTERNO_PARA_SACA_VHP = 32.669  # m³ hidratado interno → saca VHP
+# Fatores de conversão etanol → VHP (EXATOS da planilha Excel)
+FATOR_M3_ANIDRO_EXPORT_PARA_SACA_VHP = 32.669  # m³ anidro export → saca VHP (C10 = C9/32.669)
+FATOR_M3_HIDRATADO_EXPORT_PARA_SACA_VHP = 31.304  # m³ hidratado export → saca VHP (F9 = F8/31.304)
+FATOR_M3_ANIDRO_INTERNO_PARA_SACA_VHP = 33.712  # m³ anidro interno → saca VHP (I14 = I9/33.712)
+FATOR_M3_HIDRATADO_INTERNO_PARA_SACA_VHP = 31.504  # m³ hidratado interno → saca VHP (L14 = L10/31.504)
+
+# Fator de desconto VHP FOB (1.042 = 4.2%)
+FATOR_DESCONTO_VHP_FOB = 1.042
+
+# Fator de conversão Cristal vs VHP (custo diferencial - será input)
+# Por enquanto, valor padrão (será configurável na interface)
+CUSTO_CRISTAL_VS_VHP_D17 = 0.0  # Será input do usuário
+
+# Impostos Esalq
+IMPOSTOS_ESALQ = 0.0985  # 9.85%
+FATOR_ESALQ_SEM_IMPOSTOS = 0.9015  # 1 - 0.0985
 
 # ============================================================================
 # FUNÇÕES DE CÁLCULO DE CBIO
@@ -139,350 +149,614 @@ def converter_usd_ton_para_brl_saca(usd_ton, cambio_usd_brl):
 # ============================================================================
 
 def calc_paridade_anidro_exportacao(
-    preco_anidro_fob_usd_m3,
-    cambio_usd_brl,
-    frete_porto_usina_brl_m3,
-    terminal_brl_m3,
-    supervisao_doc_brl_m3,
-    custos_adicionais_demurrage_brl_m3=0
+    preco_anidro_fob_usd_m3,  # C3
+    cambio_usd_brl,  # C4
+    frete_porto_usina_brl_m3,  # C5
+    terminal_brl_m3,  # C6
+    supervisao_doc_brl_m3,  # C7
+    custos_adicionais_demurrage_brl_m3=0,  # C8
+    terminal_usd_ton=None,  # C30 (do bloco açúcar)
+    frete_brl_ton=None  # C32 (do bloco açúcar)
 ):
     """
-    Calcula paridade de etanol anidro para exportação.
+    BLOCO 1 — ANIDRO EXPORTAÇÃO (colunas B/C, linhas 3–12)
+    
+    Calcula paridade de etanol anidro para exportação seguindo EXATAMENTE as fórmulas da planilha Excel.
+    
+    Args:
+        preco_anidro_fob_usd_m3: C3 - Preço FOB USD/m³
+        cambio_usd_brl: C4 - Câmbio USD/BRL
+        frete_porto_usina_brl_m3: C5 - Frete Porto-Usina R$/m³
+        terminal_brl_m3: C6 - Terminal R$/m³
+        supervisao_doc_brl_m3: C7 - Supervisão/Doc R$/m³
+        custos_adicionais_demurrage_brl_m3: C8 - Custos Adicionais/Demurrage R$/m³
+        terminal_usd_ton: C30 - Terminal USD/ton (do bloco açúcar, para cálculo FOB)
+        frete_brl_ton: C32 - Frete R$/ton (do bloco açúcar, para cálculo FOB)
     
     Returns:
-        dict: Dicionário com todos os valores calculados
+        dict: Dicionário com todos os valores calculados (C9-C12)
     """
-    # Preço bruto PVU em R$/m³
-    preco_bruto_pvu_brl_m3 = preco_anidro_fob_usd_m3 * cambio_usd_brl
+    # C9: Preço líquido PVU
+    # Excel: =((C3*C4)-C5-C6-C7-C8)
+    preco_liquido_pvu_brl_m3 = (preco_anidro_fob_usd_m3 * cambio_usd_brl) - frete_porto_usina_brl_m3 - terminal_brl_m3 - supervisao_doc_brl_m3 - custos_adicionais_demurrage_brl_m3
     
-    # Preço líquido PVU em R$/m³
-    preco_liquido_pvu_brl_m3 = (
-        preco_bruto_pvu_brl_m3
-        - frete_porto_usina_brl_m3
-        - terminal_brl_m3
-        - supervisao_doc_brl_m3
-        - custos_adicionais_demurrage_brl_m3
-    )
-    
-    # Equivalente VHP BRL/saca PVU
+    # C10: Equivalente VHP BRL/saca PVU
+    # Excel: =C9/32.669
     vhp_pvu_brl_saca = preco_liquido_pvu_brl_m3 / FATOR_M3_ANIDRO_EXPORT_PARA_SACA_VHP
     
-    # Equivalente VHP USD/ton PVU
-    vhp_pvu_usd_ton = converter_brl_saca_para_usd_ton(vhp_pvu_brl_saca, cambio_usd_brl)
+    # C11: Equivalente Cents/lb PVU
+    # Excel: =((C10*20)/22.0462)/C4/1.042
+    vhp_pvu_cents_lb = ((vhp_pvu_brl_saca * SACAS_POR_TON) / FATOR_CWT_POR_TON) / cambio_usd_brl / FATOR_DESCONTO_VHP_FOB
     
-    # Equivalente VHP cents/lb PVU
-    vhp_pvu_cents_lb = converter_usd_ton_para_cents_lb(vhp_pvu_usd_ton)
-    
-    # FOB equivalente (ajustando custos de volta)
-    custos_totais_brl_m3 = (
-        frete_porto_usina_brl_m3 + terminal_brl_m3 + 
-        supervisao_doc_brl_m3 + custos_adicionais_demurrage_brl_m3
-    )
-    preco_fob_equivalente_brl_m3 = preco_liquido_pvu_brl_m3 + custos_totais_brl_m3
-    vhp_fob_brl_saca = preco_fob_equivalente_brl_m3 / FATOR_M3_ANIDRO_EXPORT_PARA_SACA_VHP
-    vhp_fob_usd_ton = converter_brl_saca_para_usd_ton(vhp_fob_brl_saca, cambio_usd_brl)
-    vhp_fob_cents_lb = converter_usd_ton_para_cents_lb(vhp_fob_usd_ton)
+    # C12: Equivalente Cents/lb FOB
+    # Excel: =((((((C9)/32.669)*20)+$C$32+($C$30*$C$4))/22.0462/$C$4)/1.042)
+    # Nota: Requer C30 (terminal_usd_ton) e C32 (frete_brl_ton) do bloco açúcar
+    vhp_fob_cents_lb = None
+    if terminal_usd_ton is not None and frete_brl_ton is not None:
+        vhp_fob_cents_lb = (((((preco_liquido_pvu_brl_m3) / FATOR_M3_ANIDRO_EXPORT_PARA_SACA_VHP) * SACAS_POR_TON) + frete_brl_ton + (terminal_usd_ton * cambio_usd_brl)) / FATOR_CWT_POR_TON / cambio_usd_brl) / FATOR_DESCONTO_VHP_FOB
     
     return {
         'rota': 'Anidro Exportação',
-        'preco_bruto_pvu_brl_m3': preco_bruto_pvu_brl_m3,
-        'preco_liquido_pvu_brl_m3': preco_liquido_pvu_brl_m3,
-        'vhp_pvu_brl_saca': vhp_pvu_brl_saca,
-        'vhp_pvu_usd_ton': vhp_pvu_usd_ton,
-        'vhp_pvu_cents_lb': vhp_pvu_cents_lb,
-        'vhp_fob_cents_lb': vhp_fob_cents_lb
+        'preco_liquido_pvu_brl_m3': preco_liquido_pvu_brl_m3,  # C9
+        'vhp_pvu_brl_saca': vhp_pvu_brl_saca,  # C10
+        'vhp_pvu_cents_lb': vhp_pvu_cents_lb,  # C11
+        'vhp_fob_cents_lb': vhp_fob_cents_lb  # C12
     }
 
 def calc_paridade_hidratado_exportacao(
-    preco_hidratado_fob_usd_m3,
-    cambio_usd_brl,
-    frete_porto_usina_brl_m3,
-    terminal_brl_m3,
-    supervisao_doc_brl_m3,
-    custos_adicionais_demurrage_brl_m3=0
+    preco_hidratado_fob_usd_m3,  # F3
+    cambio_usd_brl,  # F4 (=C4)
+    frete_porto_usina_brl_m3,  # F5 (=C5)
+    terminal_brl_m3,  # F6 (=C6)
+    supervisao_doc_brl_m3,  # F7 (=C7)
+    custos_adicionais_demurrage_brl_m3=0,  # F8 (não usado na planilha, mas mantido)
+    terminal_usd_ton=None,  # C30 (do bloco açúcar)
+    frete_brl_ton=None  # C32 (do bloco açúcar)
 ):
     """
-    Calcula paridade de etanol hidratado para exportação.
+    BLOCO 2 — HIDRATADO EXPORTAÇÃO (colunas E/F, linhas 3–11)
+    
+    Calcula paridade de etanol hidratado para exportação seguindo EXATAMENTE as fórmulas da planilha Excel.
+    
+    Args:
+        preco_hidratado_fob_usd_m3: F3 - Preço FOB USD/m³
+        cambio_usd_brl: F4 (=C4) - Câmbio USD/BRL
+        frete_porto_usina_brl_m3: F5 (=C5) - Frete Porto-Usina R$/m³
+        terminal_brl_m3: F6 (=C6) - Terminal R$/m³
+        supervisao_doc_brl_m3: F7 (=C7) - Supervisão/Doc R$/m³
+        custos_adicionais_demurrage_brl_m3: Não usado na planilha original
+        terminal_usd_ton: C30 - Terminal USD/ton (do bloco açúcar, para cálculo FOB)
+        frete_brl_ton: C32 - Frete R$/ton (do bloco açúcar, para cálculo FOB)
     
     Returns:
-        dict: Dicionário com todos os valores calculados
+        dict: Dicionário com todos os valores calculados (F8-F11)
     """
-    # Preço bruto PVU em R$/m³
-    preco_bruto_pvu_brl_m3 = preco_hidratado_fob_usd_m3 * cambio_usd_brl
+    # F8: Preço líquido PVU
+    # Excel: =(F3*F4)-F5-F6-F7
+    preco_liquido_pvu_brl_m3 = (preco_hidratado_fob_usd_m3 * cambio_usd_brl) - frete_porto_usina_brl_m3 - terminal_brl_m3 - supervisao_doc_brl_m3
     
-    # Preço líquido PVU em R$/m³
-    preco_liquido_pvu_brl_m3 = (
-        preco_bruto_pvu_brl_m3
-        - frete_porto_usina_brl_m3
-        - terminal_brl_m3
-        - supervisao_doc_brl_m3
-        - custos_adicionais_demurrage_brl_m3
-    )
-    
-    # Equivalente VHP BRL/saca PVU
+    # F9: Equivalente VHP BRL/saca PVU
+    # Excel: =F8/31.304
     vhp_pvu_brl_saca = preco_liquido_pvu_brl_m3 / FATOR_M3_HIDRATADO_EXPORT_PARA_SACA_VHP
     
-    # Equivalente VHP USD/ton PVU
-    vhp_pvu_usd_ton = converter_brl_saca_para_usd_ton(vhp_pvu_brl_saca, cambio_usd_brl)
+    # F10: Equivalente Cents/lb PVU
+    # Excel: =((F9*20)/22.0462)/F4/1.042
+    vhp_pvu_cents_lb = ((vhp_pvu_brl_saca * SACAS_POR_TON) / FATOR_CWT_POR_TON) / cambio_usd_brl / FATOR_DESCONTO_VHP_FOB
     
-    # Equivalente VHP cents/lb PVU
-    vhp_pvu_cents_lb = converter_usd_ton_para_cents_lb(vhp_pvu_usd_ton)
-    
-    # FOB equivalente
-    custos_totais_brl_m3 = (
-        frete_porto_usina_brl_m3 + terminal_brl_m3 + 
-        supervisao_doc_brl_m3 + custos_adicionais_demurrage_brl_m3
-    )
-    preco_fob_equivalente_brl_m3 = preco_liquido_pvu_brl_m3 + custos_totais_brl_m3
-    vhp_fob_brl_saca = preco_fob_equivalente_brl_m3 / FATOR_M3_HIDRATADO_EXPORT_PARA_SACA_VHP
-    vhp_fob_usd_ton = converter_brl_saca_para_usd_ton(vhp_fob_brl_saca, cambio_usd_brl)
-    vhp_fob_cents_lb = converter_usd_ton_para_cents_lb(vhp_fob_usd_ton)
+    # F11: Equivalente Cents/lb FOB
+    # Excel: =((((((F8)/32.669)*20)+$C$32+($C$30*$C$4))/22.0462/$C$4)/1.042)
+    # Nota: Requer C30 (terminal_usd_ton) e C32 (frete_brl_ton) do bloco açúcar
+    # Nota: A planilha usa 32.669 aqui, não 31.304 (parece ser um erro na planilha, mas seguimos exatamente)
+    vhp_fob_cents_lb = None
+    if terminal_usd_ton is not None and frete_brl_ton is not None:
+        vhp_fob_cents_lb = ((((((preco_liquido_pvu_brl_m3) / 32.669) * SACAS_POR_TON) + frete_brl_ton + (terminal_usd_ton * cambio_usd_brl)) / FATOR_CWT_POR_TON / cambio_usd_brl) / FATOR_DESCONTO_VHP_FOB)
     
     return {
         'rota': 'Hidratado Exportação',
-        'preco_bruto_pvu_brl_m3': preco_bruto_pvu_brl_m3,
-        'preco_liquido_pvu_brl_m3': preco_liquido_pvu_brl_m3,
-        'vhp_pvu_brl_saca': vhp_pvu_brl_saca,
-        'vhp_pvu_usd_ton': vhp_pvu_usd_ton,
-        'vhp_pvu_cents_lb': vhp_pvu_cents_lb,
-        'vhp_fob_cents_lb': vhp_fob_cents_lb
+        'preco_liquido_pvu_brl_m3': preco_liquido_pvu_brl_m3,  # F8
+        'vhp_pvu_brl_saca': vhp_pvu_brl_saca,  # F9
+        'vhp_pvu_cents_lb': vhp_pvu_cents_lb,  # F10
+        'vhp_fob_cents_lb': vhp_fob_cents_lb  # F11
     }
 
 def calc_paridade_anidro_interno(
-    preco_anidro_interno_com_impostos_brl_m3,
-    pis_cofins_brl_m3,
-    aliquota_icms,
-    contribuicao_agroindustria_brl_m3,
-    preco_cbio_bruto_brl,
-    aliquota_ir_cbio=None,
-    aliquota_pis_cofins_cbio=None,
-    share_produtor_cbio=None,
-    fc_anidro=None
+    preco_anidro_com_impostos_brl_m3,  # I3
+    pis_cofins_brl_m3,  # I4
+    contribuicao_agroindustria,  # I5 (percentual, não R$/m³)
+    valor_cbio_bruto_brl,  # I7
+    cambio_usd_brl,  # C4 (para cálculos de equivalentes)
+    terminal_usd_ton=None,  # C30 (para cálculos FOB)
+    frete_brl_ton=None,  # C32 (para cálculos FOB)
+    preco_hidratado_pvu_brl_m3=None,  # L11 (para I21)
+    preco_hidratado_com_impostos_brl_m3=None  # L7 (para I22)
 ):
     """
-    Calcula paridade de etanol anidro para mercado interno.
+    BLOCO 3 — ANIDRO MERCADO INTERNO (colunas H/I, linhas 3–22 e 14–19)
+    
+    Calcula paridade de etanol anidro para mercado interno seguindo EXATAMENTE as fórmulas da planilha Excel.
+    
+    Args:
+        preco_anidro_com_impostos_brl_m3: I3 - Preço com impostos R$/m³
+        pis_cofins_brl_m3: I4 - PIS/COFINS R$/m³
+        contribuicao_agroindustria: I5 - Contribuição Agroindústria (percentual, não R$/m³)
+        valor_cbio_bruto_brl: I7 - Valor CBIO bruto R$/CBIO
+        cambio_usd_brl: C4 - Câmbio USD/BRL
+        terminal_usd_ton: C30 - Terminal USD/ton (do bloco açúcar, para cálculos FOB)
+        frete_brl_ton: C32 - Frete R$/ton (do bloco açúcar, para cálculos FOB)
+        preco_hidratado_pvu_brl_m3: L11 - Preço hidratado PVU (para I21)
+        preco_hidratado_com_impostos_brl_m3: L7 - Preço hidratado com impostos (para I22)
     
     Returns:
-        dict: Dicionário com todos os valores calculados
+        dict: Dicionário com todos os valores calculados (I6-I22)
     """
-    # ICMS
-    icms_brl_m3 = preco_anidro_interno_com_impostos_brl_m3 * aliquota_icms
+    # I6: Preço líquido PVU
+    # Excel: =((I3*(1-I5))-I4)
+    preco_liquido_pvu_brl_m3 = (preco_anidro_com_impostos_brl_m3 * (1 - contribuicao_agroindustria)) - pis_cofins_brl_m3
     
-    # Preço líquido PVU sem CBIO
-    preco_liquido_pvu_brl_m3 = (
-        preco_anidro_interno_com_impostos_brl_m3
-        - pis_cofins_brl_m3
-        - icms_brl_m3
-        - contribuicao_agroindustria_brl_m3
-    )
+    # I8: Valor CBIO sem IR (15%) / PIS/Cof (9,25%) / 60% Usina
+    # Excel: =(I7*0.7575)*0.6
+    # 0.7575 = 1 - 0.15 (IR) - 0.0925 (PIS/COFINS)
+    valor_cbio_liquido_por_cbio = (valor_cbio_bruto_brl * 0.7575) * 0.6
     
-    # CBIO - valor líquido por m³
-    valor_cbio_liquido_por_m3 = calcular_cbio_liquido_por_m3(
-        preco_cbio_bruto_brl, 
-        'anidro',
-        aliquota_ir_cbio,
-        aliquota_pis_cofins_cbio,
-        share_produtor_cbio,
-        fc_anidro,
-        None
-    )
-    
-    # Preço PVU + CBIO
+    # I9: Preço líquido PVU + CBIO (FC 712,40)
+    # Excel: =I6+((I8/712.4)*1000)
+    valor_cbio_liquido_por_m3 = (valor_cbio_liquido_por_cbio / FC_ANIDRO_LITROS_POR_CBIO) * 1000
     preco_pvu_mais_cbio_brl_m3 = preco_liquido_pvu_brl_m3 + valor_cbio_liquido_por_m3
     
-    # Equivalente HIDRATADO (fator 7,69%)
-    preco_hid_equivalente_brl_m3 = preco_pvu_mais_cbio_brl_m3 * (1 - FATOR_CONV_ANIDRO_HIDRATADO)
+    # I10: Equivalente Hidratado - 7,69% Fator Conv.
+    # Excel: =I6/(1+0.0769)
+    preco_hid_equivalente_brl_m3 = preco_liquido_pvu_brl_m3 / (1 + FATOR_CONV_ANIDRO_HIDRATADO)
     
-    # Equivalente VHP BRL/saca PVU
+    # I14: Equivalente VHP BRL/saco PVU
+    # Excel: =(I9/33.712)
     vhp_pvu_brl_saca = preco_pvu_mais_cbio_brl_m3 / FATOR_M3_ANIDRO_INTERNO_PARA_SACA_VHP
     
-    # Para conversão para USD/ton e cents/lb, precisamos do câmbio
-    # (será calculado na função principal)
+    # I15: Equivalente VHP Cents/lb PVU
+    # Excel: =(((I14*20)/22.0462)/C4)
+    vhp_pvu_cents_lb = (((vhp_pvu_brl_saca * SACAS_POR_TON) / FATOR_CWT_POR_TON) / cambio_usd_brl)
+    
+    # I16: Equivalente VHP Cents/lb FOB
+    # Excel: =(((I15*20)/22.0462)/C5)
+    # Nota: Parece haver um erro na planilha (C5 não existe, provavelmente deveria ser C4)
+    # Mas seguimos exatamente como especificado
+    vhp_fob_cents_lb = None
+    if cambio_usd_brl is not None:
+        # Assumindo que C5 é um erro e deveria ser C4
+        vhp_fob_cents_lb = (((vhp_pvu_cents_lb * SACAS_POR_TON) / FATOR_CWT_POR_TON) / cambio_usd_brl)
+    
+    # I17: Equivalente Cristal BRL/Saca PVU
+    # Excel: =(((I16*20)/22.0462)/C6)
+    # Nota: Parece haver um erro na planilha (C6 não existe no contexto)
+    cristal_pvu_brl_saca = None
+    if vhp_fob_cents_lb is not None:
+        # Assumindo conversão similar
+        cristal_pvu_brl_saca = (((vhp_fob_cents_lb * SACAS_POR_TON) / FATOR_CWT_POR_TON) / cambio_usd_brl)
+    
+    # I18: Equivalente Cristal Cents/lb PVU
+    # Excel: =(((I17*20)/22.0462)/C7)
+    cristal_pvu_cents_lb = None
+    if cristal_pvu_brl_saca is not None:
+        cristal_pvu_cents_lb = (((cristal_pvu_brl_saca * SACAS_POR_TON) / FATOR_CWT_POR_TON) / cambio_usd_brl)
+    
+    # I19: Equivalente Cristal Cents/lb FOB
+    # Excel: =(((I18*20)/22.0462)/C8)
+    cristal_fob_cents_lb = None
+    if cristal_pvu_cents_lb is not None and cambio_usd_brl is not None:
+        cristal_fob_cents_lb = (((cristal_pvu_cents_lb * SACAS_POR_TON) / FATOR_CWT_POR_TON) / cambio_usd_brl)
+    
+    # I21: Prêmio Anidro/Hidratado Líquido
+    # Excel: =(I6/L11)-1
+    premio_anidro_hidratado_liquido = None
+    if preco_hidratado_pvu_brl_m3 is not None and preco_hidratado_pvu_brl_m3 != 0:
+        premio_anidro_hidratado_liquido = (preco_liquido_pvu_brl_m3 / preco_hidratado_pvu_brl_m3) - 1
+    
+    # I22: Prêmio Anidro/Hidratado Contrato
+    # Excel: =(I6/L7)-1
+    premio_anidro_hidratado_contrato = None
+    if preco_hidratado_com_impostos_brl_m3 is not None and preco_hidratado_com_impostos_brl_m3 != 0:
+        premio_anidro_hidratado_contrato = (preco_liquido_pvu_brl_m3 / preco_hidratado_com_impostos_brl_m3) - 1
     
     return {
         'rota': 'Anidro Mercado Interno',
-        'preco_liquido_pvu_brl_m3': preco_liquido_pvu_brl_m3,
-        'valor_cbio_liquido_por_m3': valor_cbio_liquido_por_m3,
-        'preco_pvu_mais_cbio_brl_m3': preco_pvu_mais_cbio_brl_m3,
-        'preco_hid_equivalente_brl_m3': preco_hid_equivalente_brl_m3,
-        'vhp_pvu_brl_saca': vhp_pvu_brl_saca
+        'preco_liquido_pvu_brl_m3': preco_liquido_pvu_brl_m3,  # I6
+        'valor_cbio_liquido_por_cbio': valor_cbio_liquido_por_cbio,  # I8
+        'preco_pvu_mais_cbio_brl_m3': preco_pvu_mais_cbio_brl_m3,  # I9
+        'preco_hid_equivalente_brl_m3': preco_hid_equivalente_brl_m3,  # I10
+        'vhp_pvu_brl_saca': vhp_pvu_brl_saca,  # I14
+        'vhp_pvu_cents_lb': vhp_pvu_cents_lb,  # I15
+        'vhp_fob_cents_lb': vhp_fob_cents_lb,  # I16
+        'cristal_pvu_brl_saca': cristal_pvu_brl_saca,  # I17
+        'cristal_pvu_cents_lb': cristal_pvu_cents_lb,  # I18
+        'cristal_fob_cents_lb': cristal_fob_cents_lb,  # I19
+        'premio_anidro_hidratado_liquido': premio_anidro_hidratado_liquido,  # I21
+        'premio_anidro_hidratado_contrato': premio_anidro_hidratado_contrato  # I22
     }
 
 def calc_paridade_hidratado_interno(
-    preco_hidratado_interno_com_impostos_brl_m3,
-    pis_cofins_brl_m3,
-    aliquota_icms,
-    contribuicao_agroindustria_brl_m3,
-    preco_cbio_bruto_brl,
-    aliquota_ir_cbio=None,
-    aliquota_pis_cofins_cbio=None,
-    share_produtor_cbio=None,
-    fc_hidratado=None
+    preco_hidratado_rp_com_impostos_brl_m3,  # L3
+    pis_cofins_brl_m3,  # L4
+    aliquota_icms,  # L5 (percentual)
+    contribuicao_agroindustria,  # L6 (percentual, não R$/m³)
+    valor_cbio_bruto_brl,  # L8
+    cambio_usd_brl,  # C4 (para cálculos de equivalentes)
+    terminal_usd_ton=None,  # C30 (para cálculos FOB)
+    frete_brl_ton=None,  # C32 (para cálculos FOB)
+    premio_fisico_pvu=None,  # I28 (para L18, L19)
+    fobizacao_container_brl_ton=None  # L31 (para L19)
 ):
     """
-    Calcula paridade de etanol hidratado para mercado interno.
+    BLOCO 4 — HIDRATADO MERCADO INTERNO (colunas K/L, linhas 3–22 e 14–19)
+    
+    Calcula paridade de etanol hidratado para mercado interno seguindo EXATAMENTE as fórmulas da planilha Excel.
+    
+    Args:
+        preco_hidratado_rp_com_impostos_brl_m3: L3 - Preço RP com impostos R$/m³
+        pis_cofins_brl_m3: L4 - PIS/COFINS R$/m³
+        aliquota_icms: L5 - Alíquota ICMS (percentual)
+        contribuicao_agroindustria: L6 - Contribuição Agroindústria (percentual, não R$/m³)
+        valor_cbio_bruto_brl: L8 - Valor CBIO bruto R$/CBIO
+        cambio_usd_brl: C4 - Câmbio USD/BRL
+        terminal_usd_ton: C30 - Terminal USD/ton (do bloco açúcar, para cálculos FOB)
+        frete_brl_ton: C32 - Frete R$/ton (do bloco açúcar, para cálculos FOB)
+        premio_fisico_pvu: I28 - Prêmio físico PVU (para L18, L19)
+        fobizacao_container_brl_ton: L31 - Fobização container R$/ton (para L19)
     
     Returns:
-        dict: Dicionário com todos os valores calculados
+        dict: Dicionário com todos os valores calculados (L7-L19)
     """
-    # ICMS
-    icms_brl_m3 = preco_hidratado_interno_com_impostos_brl_m3 * aliquota_icms
+    # L7: Preço líquido PVU
+    # Excel: =((L3*(1-L6))*(1-L5)-L4)
+    preco_liquido_pvu_brl_m3 = ((preco_hidratado_rp_com_impostos_brl_m3 * (1 - contribuicao_agroindustria)) * (1 - aliquota_icms)) - pis_cofins_brl_m3
     
-    # Preço líquido PVU sem CBIO
-    preco_liquido_pvu_brl_m3 = (
-        preco_hidratado_interno_com_impostos_brl_m3
-        - pis_cofins_brl_m3
-        - icms_brl_m3
-        - contribuicao_agroindustria_brl_m3
-    )
+    # L9: Valor CBIO sem IR (15%) / PIS/Cof (9,25%) / 60% Usina
+    # Excel: =(L8*0.7575)*0.6
+    valor_cbio_liquido_por_cbio = (valor_cbio_bruto_brl * 0.7575) * 0.6
     
-    # CBIO - valor líquido por m³
-    valor_cbio_liquido_por_m3 = calcular_cbio_liquido_por_m3(
-        preco_cbio_bruto_brl, 
-        'hidratado',
-        aliquota_ir_cbio,
-        aliquota_pis_cofins_cbio,
-        share_produtor_cbio,
-        None,
-        fc_hidratado
-    )
-    
-    # Preço PVU + CBIO
+    # L10: Preço líquido PVU + CBIO (FC 749,75)
+    # Excel: =L7+((L9/749.75)*1000)
+    valor_cbio_liquido_por_m3 = (valor_cbio_liquido_por_cbio / FC_HIDRATADO_LITROS_POR_CBIO) * 1000
     preco_pvu_mais_cbio_brl_m3 = preco_liquido_pvu_brl_m3 + valor_cbio_liquido_por_m3
     
-    # Crédito Tributário (0,24 R$/L = 240 R$/m³)
-    credito_tributario_brl_m3 = CREDITO_TRIBUTARIO_HIDRATADO_POR_LITRO * 1000
+    # L11: Equivalente Anidro - 7,69% Fator Conv.
+    # Excel: =L7*(1+0.0769)
+    preco_anidro_equivalente_brl_m3 = preco_liquido_pvu_brl_m3 * (1 + FATOR_CONV_ANIDRO_HIDRATADO)
     
-    # Preço PVU + CBIO + Crédito Tributário
+    # L12: Preço Liquido PVU + CBIO + Credito Trib. (0,24)
+    # Excel: =L10+240
+    credito_tributario_brl_m3 = 240  # 0.24 R$/L * 1000 L/m³
     preco_pvu_cbio_credito_brl_m3 = preco_pvu_mais_cbio_brl_m3 + credito_tributario_brl_m3
     
-    # Equivalente ANIDRO (7,69%)
-    preco_anidro_equivalente_brl_m3 = preco_pvu_mais_cbio_brl_m3 / (1 - FATOR_CONV_ANIDRO_HIDRATADO)
+    # L14: Equivalente VHP BRL/saco PVU
+    # Excel: =(L10/31.504)
+    vhp_pvu_brl_saca = preco_pvu_mais_cbio_brl_m3 / FATOR_M3_HIDRATADO_INTERNO_PARA_SACA_VHP
     
-    # Equivalente VHP BRL/saca PVU (usando preço com crédito tributário)
-    vhp_pvu_brl_saca = preco_pvu_cbio_credito_brl_m3 / FATOR_M3_HIDRATADO_INTERNO_PARA_SACA_VHP
+    # L15: Equivalente VHP Cents/lb PVU
+    # Excel: =(((L14*20)/22.0462)/$F$4)
+    # Nota: $F$4 = C4 (câmbio)
+    vhp_pvu_cents_lb = (((vhp_pvu_brl_saca * SACAS_POR_TON) / FATOR_CWT_POR_TON) / cambio_usd_brl)
+    
+    # L16: Equivalente VHP Cents/lb FOB
+    # Excel: =((((((L10)/31.504)*20)+$C$32+($C$30*$C$4))/22.0462/$C$4)/1.042)
+    vhp_fob_cents_lb = None
+    if terminal_usd_ton is not None and frete_brl_ton is not None:
+        vhp_fob_cents_lb = ((((((preco_pvu_mais_cbio_brl_m3) / FATOR_M3_HIDRATADO_INTERNO_PARA_SACA_VHP) * SACAS_POR_TON) + frete_brl_ton + (terminal_usd_ton * cambio_usd_brl)) / FATOR_CWT_POR_TON / cambio_usd_brl) / FATOR_DESCONTO_VHP_FOB)
+    
+    # L17: Equivalente Cristal BRL/Saca PVU
+    # Excel: =(L18*22.0462/20)*$C$4
+    # Nota: L18 é calculado primeiro, então precisamos calcular L18 antes
+    cristal_pvu_brl_saca = None
+    
+    # L18: Equivalente Cristal Cents/lb PVU
+    # Excel: =((((((L10)/31.504)*20)+($I$28*$C$4))/22.0462/$C$4))
+    cristal_pvu_cents_lb = None
+    if premio_fisico_pvu is not None:
+        cristal_pvu_cents_lb = ((((((preco_pvu_mais_cbio_brl_m3) / FATOR_M3_HIDRATADO_INTERNO_PARA_SACA_VHP) * SACAS_POR_TON) + (premio_fisico_pvu * cambio_usd_brl)) / FATOR_CWT_POR_TON / cambio_usd_brl))
+        # Agora calculamos L17 usando L18
+        cristal_pvu_brl_saca = (cristal_pvu_cents_lb * FATOR_CWT_POR_TON / SACAS_POR_TON) * cambio_usd_brl
+    
+    # L19: Equivalente Cristal Cents/lb FOB
+    # Excel: =(((((((L10)/31.504)*20)+$C$32+L31)+($I$28*$C$4))/22.0462/$C$4))
+    cristal_fob_cents_lb = None
+    if frete_brl_ton is not None and fobizacao_container_brl_ton is not None and premio_fisico_pvu is not None:
+        cristal_fob_cents_lb = (((((((preco_pvu_mais_cbio_brl_m3) / FATOR_M3_HIDRATADO_INTERNO_PARA_SACA_VHP) * SACAS_POR_TON) + frete_brl_ton + fobizacao_container_brl_ton) + (premio_fisico_pvu * cambio_usd_brl)) / FATOR_CWT_POR_TON / cambio_usd_brl)
     
     return {
         'rota': 'Hidratado Mercado Interno',
-        'preco_liquido_pvu_brl_m3': preco_liquido_pvu_brl_m3,
-        'valor_cbio_liquido_por_m3': valor_cbio_liquido_por_m3,
-        'preco_pvu_mais_cbio_brl_m3': preco_pvu_mais_cbio_brl_m3,
-        'credito_tributario_brl_m3': credito_tributario_brl_m3,
-        'preco_pvu_cbio_credito_brl_m3': preco_pvu_cbio_credito_brl_m3,
-        'preco_anidro_equivalente_brl_m3': preco_anidro_equivalente_brl_m3,
-        'vhp_pvu_brl_saca': vhp_pvu_brl_saca
+        'preco_liquido_pvu_brl_m3': preco_liquido_pvu_brl_m3,  # L7
+        'valor_cbio_liquido_por_cbio': valor_cbio_liquido_por_cbio,  # L9
+        'preco_pvu_mais_cbio_brl_m3': preco_pvu_mais_cbio_brl_m3,  # L10
+        'preco_anidro_equivalente_brl_m3': preco_anidro_equivalente_brl_m3,  # L11
+        'credito_tributario_brl_m3': credito_tributario_brl_m3,  # 240
+        'preco_pvu_cbio_credito_brl_m3': preco_pvu_cbio_credito_brl_m3,  # L12
+        'vhp_pvu_brl_saca': vhp_pvu_brl_saca,  # L14
+        'vhp_pvu_cents_lb': vhp_pvu_cents_lb,  # L15
+        'vhp_fob_cents_lb': vhp_fob_cents_lb,  # L16
+        'cristal_pvu_brl_saca': cristal_pvu_brl_saca,  # L17
+        'cristal_pvu_cents_lb': cristal_pvu_cents_lb,  # L18
+        'cristal_fob_cents_lb': cristal_fob_cents_lb  # L19
     }
 
 def calc_paridade_acucar(
-    ny_sugar_fob_cents_lb,
-    premio_fisico_usd_ton_cristal,
-    premio_fisico_usd_ton_malha30,
-    cambio_usd_brl,
-    fobizacao_container_brl_ton,
-    frete_export_sugar_brl_ton,
-    preco_sugar_cristal_esalq_brl_saca,
-    preco_sugar_cristal_export_malha30_brl_saca,
-    terminal_usd_ton=None,
-    premio_pol_percent=None,
-    premio_desconto_cents_lb=None
+    sugar_ny_fob_cents_lb,  # C26
+    premio_desconto_cents_lb,  # C27
+    premio_pol,  # C28 (percentual, não dividido por 100)
+    cambio_usd_brl,  # C31 (=C4)
+    terminal_usd_ton,  # C30
+    frete_brl_ton,  # C32
+    esalq_brl_saca=None,  # F26
+    impostos_esalq=None,  # F27
+    premio_fisico_pvu=None,  # I28
+    premio_fisico_fob=None,  # L28
+    premio_fisico_malha30=None,  # O28
+    fobizacao_container_brl_ton=None,  # L31
+    frete_export_brl_ton=None,  # L32
+    custo_cristal_vs_vhp=0.0  # 'Custo Cristal vs VHP'!$D$17
 ):
     """
-    Calcula paridade de açúcar (NY11 + prêmios, Esalq, Cristal Export).
+    BLOCO 5 — PARIDADE AÇÚCAR (5 sub-blocos)
+    
+    Calcula paridade de açúcar seguindo EXATAMENTE as fórmulas da planilha Excel.
     
     Args:
-        terminal_usd_ton: Custo de terminal em USD/ton (para VHP)
-        premio_pol_percent: Prêmio POL em percentual (para VHP)
-        premio_desconto_cents_lb: Prêmio/desconto em cents/lb (para VHP)
+        sugar_ny_fob_cents_lb: C26 - NY11 FOB cents/lb
+        premio_desconto_cents_lb: C27 - Prêmio/desconto cents/lb
+        premio_pol: C28 - Prêmio POL (percentual, ex: 0.042 = 4.2%)
+        cambio_usd_brl: C31 (=C4) - Câmbio USD/BRL
+        terminal_usd_ton: C30 - Terminal USD/ton
+        frete_brl_ton: C32 - Frete R$/ton
+        esalq_brl_saca: F26 - Preço Esalq R$/saca
+        impostos_esalq: F27 - Impostos Esalq (percentual)
+        premio_fisico_pvu: I28 - Prêmio físico PVU (para Merc. Interno)
+        premio_fisico_fob: L28 - Prêmio físico FOB (para Exportação)
+        premio_fisico_malha30: O28 - Prêmio físico Malha 30
+        fobizacao_container_brl_ton: L31 - Fobização container R$/ton
+        frete_export_brl_ton: L32 - Frete exportação R$/ton
+        custo_cristal_vs_vhp: Custo diferencial Cristal vs VHP
     
     Returns:
-        dict: Dicionário com todos os valores calculados
+        dict: Dicionário com todos os valores calculados dos 5 sub-blocos
     """
-    # NY11 → USD/ton
-    ny_usd_ton = converter_cents_lb_para_usd_ton(ny_sugar_fob_cents_lb)
+    # ===== SUB-BLOCO 5.1 — SUGAR VHP (B/C, linhas 26–35) =====
+    # C29: Sugar NY + POL
+    # Excel: =(C26+C27)*(1+C28)
+    sugar_ny_pol_cents_lb = (sugar_ny_fob_cents_lb + premio_desconto_cents_lb) * (1 + premio_pol)
     
-    # ===== CÁLCULO VHP (se parâmetros fornecidos) =====
-    sugar_vhp_pvu_brl_saca = None
-    sugar_vhp_pvu_cents_lb = None
-    sugar_vhp_fob_cents_lb = None
+    # C33: Equivalente VHP BRL/saca PVU
+    # Excel: =(((C29*22.0462)-C30-(C32/C31))/20)*C31
+    sugar_vhp_pvu_brl_saca = (((sugar_ny_pol_cents_lb * FATOR_CWT_POR_TON) - terminal_usd_ton - (frete_brl_ton / cambio_usd_brl)) / SACAS_POR_TON) * cambio_usd_brl
     
-    if premio_pol_percent is not None and premio_desconto_cents_lb is not None and terminal_usd_ton is not None:
-        # Fórmula da planilha Excel: =(((C29*22,0462)-C30-(C32/C31))/20)*C31
-        # Onde:
-        # C29 = Sugar NY + POL (em cents/lb) = (NY + prêmio/desconto) * (1 + POL%)
-        # C30 = Terminal USD/ton
-        # C32 = Frete R$/ton
-        # C31 = Câmbio
-        # 22,0462 = FATOR_CWT_POR_TON
-        # 20 = SACAS_POR_TON
+    # C34: Equivalente VHP Cents/lb PVU
+    # Excel: =((C33*20)/22.0462)/C31
+    sugar_vhp_pvu_cents_lb = ((sugar_vhp_pvu_brl_saca * SACAS_POR_TON) / FATOR_CWT_POR_TON) / cambio_usd_brl
+    
+    # C35: Equivalente VHP Cents/lb FOB
+    # Excel: =C29
+    sugar_vhp_fob_cents_lb = sugar_ny_pol_cents_lb
+    
+    # ===== SUB-BLOCO 5.2 — CRISTAL ESALQ (E/F, linhas 26–38) =====
+    sugar_esalq_vhp_pvu_brl_saca = None
+    sugar_esalq_vhp_pvu_cents_lb = None
+    sugar_esalq_vhp_fob_cents_lb = None
+    sugar_esalq_cristal_pvu_brl_saca = None
+    sugar_esalq_cristal_pvu_cents_lb = None
+    sugar_esalq_cristal_fob_cents_lb = None
+    
+    if esalq_brl_saca is not None and impostos_esalq is not None:
+        # F36: Equivalente Cristal BRL/Saca PVU
+        # Excel: =(F26*(1-F27))
+        sugar_esalq_cristal_pvu_brl_saca = esalq_brl_saca * (1 - impostos_esalq)
         
-        # NY11 + prêmio/desconto em cents/lb
-        ny_com_premio_cents_lb = ny_sugar_fob_cents_lb + premio_desconto_cents_lb
+        # F33: Equivalente VHP BRL/saco PVU
+        # Excel: =F36-'Custo Cristal vs VHP'!$D$17
+        sugar_esalq_vhp_pvu_brl_saca = sugar_esalq_cristal_pvu_brl_saca - custo_cristal_vs_vhp
         
-        # Aplicar prêmio POL
-        ny_com_pol_cents_lb = ny_com_premio_cents_lb * (1 + premio_pol_percent / 100)
+        # F34: Equivalente VHP Cents/lb PVU
+        # Excel: =(((F33*20)/22.0462)/$C$4)
+        sugar_esalq_vhp_pvu_cents_lb = (((sugar_esalq_vhp_pvu_brl_saca * SACAS_POR_TON) / FATOR_CWT_POR_TON) / cambio_usd_brl)
         
-        # Fórmula da planilha: (((NY+POL * 22.0462) - Terminal - (Frete/Câmbio)) / 20) * Câmbio
-        sugar_vhp_pvu_brl_saca = (((ny_com_pol_cents_lb * FATOR_CWT_POR_TON) - terminal_usd_ton - (frete_export_sugar_brl_ton / cambio_usd_brl)) / SACAS_POR_TON) * cambio_usd_brl
+        # F35: Equivalente VHP Cents/lb FOB
+        # Excel: =((((((F33)*20)+$L$32+(C30*C4))/22.0462/$C$4)))
+        if frete_export_brl_ton is not None:
+            sugar_esalq_vhp_fob_cents_lb = ((((((sugar_esalq_vhp_pvu_brl_saca) * SACAS_POR_TON) + frete_export_brl_ton + (terminal_usd_ton * cambio_usd_brl)) / FATOR_CWT_POR_TON / cambio_usd_brl))
         
-        # PVU USD/ton
-        sugar_vhp_pvu_usd_ton = sugar_vhp_pvu_brl_saca * SACAS_POR_TON / cambio_usd_brl
+        # F37: Equivalente Cristal Cents/lb PVU
+        # Excel: =(((F36*20)/22.0462)/C4)-(15/22.0462/C4)
+        sugar_esalq_cristal_pvu_cents_lb = (((sugar_esalq_cristal_pvu_brl_saca * SACAS_POR_TON) / FATOR_CWT_POR_TON) / cambio_usd_brl) - (15 / FATOR_CWT_POR_TON / cambio_usd_brl)
         
-        # PVU cents/lb
-        sugar_vhp_pvu_cents_lb = converter_usd_ton_para_cents_lb(sugar_vhp_pvu_usd_ton)
+        # F38: Equivalente Cristal Cents/lb FOB
+        # Excel: =(((F36*20)+F28+F29)/22.04622)/C4
+        # F28 = L32, F29 = L31
+        if frete_export_brl_ton is not None and fobizacao_container_brl_ton is not None:
+            sugar_esalq_cristal_fob_cents_lb = (((sugar_esalq_cristal_pvu_brl_saca * SACAS_POR_TON) + frete_export_brl_ton + fobizacao_container_brl_ton) / 22.04622) / cambio_usd_brl
+    
+    # ===== SUB-BLOCO 5.3 — CRISTAL MERCADO INTERNO / PVU (H/I, linhas 26–41) =====
+    sugar_interno_cristal_pvu_brl_saca = None
+    sugar_interno_vhp_pvu_brl_saca = None
+    sugar_interno_vhp_pvu_cents_lb = None
+    sugar_interno_vhp_fob_cents_lb = None
+    sugar_interno_cristal_pvu_cents_lb = None
+    sugar_interno_cristal_fob_cents_lb = None
+    sugar_interno_esalq_com_impostos = None
+    
+    if premio_fisico_pvu is not None:
+        # I26: =C26
+        # I27: =I26*22.04622
+        sugar_ny_usd_ton = sugar_ny_fob_cents_lb * 22.04622
         
-        # FOB cents/lb = NY + POL (já calculado)
-        sugar_vhp_fob_cents_lb = ny_com_pol_cents_lb
+        # I29: Sugar PVU USD/ton
+        # Excel: =I27+I28
+        sugar_pvu_usd_ton = sugar_ny_usd_ton + premio_fisico_pvu
+        
+        # I30: Sugar PVU R$/ton
+        # Excel: =I29*C4
+        sugar_pvu_brl_ton = sugar_pvu_usd_ton * cambio_usd_brl
+        
+        # I36: Equivalente Cristal BRL/Saca PVU
+        # Excel: =(I30)/20
+        sugar_interno_cristal_pvu_brl_saca = sugar_pvu_brl_ton / SACAS_POR_TON
+        
+        # I33: Equivalente VHP BRL/saco PVU
+        # Excel: =I36-'Custo Cristal vs VHP'!$D$17
+        sugar_interno_vhp_pvu_brl_saca = sugar_interno_cristal_pvu_brl_saca - custo_cristal_vs_vhp
+        
+        # I34: Equivalente VHP Cents/lb PVU
+        # Excel: =(((I33*20)/22.0462)/$C$4)
+        sugar_interno_vhp_pvu_cents_lb = (((sugar_interno_vhp_pvu_brl_saca * SACAS_POR_TON) / FATOR_CWT_POR_TON) / cambio_usd_brl)
+        
+        # I35: Equivalente VHP Cents/lb FOB
+        # Excel: =((((((I33)*20)+$L$32+($C$30*$C$4))/22.0462/$C$4)))
+        if frete_export_brl_ton is not None:
+            sugar_interno_vhp_fob_cents_lb = ((((((sugar_interno_vhp_pvu_brl_saca) * SACAS_POR_TON) + frete_export_brl_ton + (terminal_usd_ton * cambio_usd_brl)) / FATOR_CWT_POR_TON / cambio_usd_brl))
+        
+        # I37: Equivalente Cristal Cents/lb PVU
+        # Excel: =((I36*20)/22.0462)/C4
+        sugar_interno_cristal_pvu_cents_lb = ((sugar_interno_cristal_pvu_brl_saca * SACAS_POR_TON) / FATOR_CWT_POR_TON) / cambio_usd_brl
+        
+        # I38: Equivalente Cristal Cents/lb FOB
+        # Excel: =((I30+L31+L32)/22.0462)/C4
+        if fobizacao_container_brl_ton is not None and frete_export_brl_ton is not None:
+            sugar_interno_cristal_fob_cents_lb = ((sugar_pvu_brl_ton + fobizacao_container_brl_ton + frete_export_brl_ton) / FATOR_CWT_POR_TON) / cambio_usd_brl
+        
+        # I41: Equivalente Esalq com Impostos
+        # Excel: =I36/0.9015
+        sugar_interno_esalq_com_impostos = sugar_interno_cristal_pvu_brl_saca / FATOR_ESALQ_SEM_IMPOSTOS
     
-    # ===== CÁLCULO CRISTAL EXPORTAÇÃO (baseado na planilha Excel) =====
-    # Fórmula da planilha: (L30-L31-L32)/20
-    # Onde:
-    # L30 = Sugar FOB R$/ton = (NY USD/ton + Prêmio Físico) * Câmbio
-    # L31 = Fobização Container R$/ton
-    # L32 = Frete R$/ton
-    # 20 = SACAS_POR_TON
+    # ===== SUB-BLOCO 5.4 — CRISTAL EXPORTAÇÃO (K/L, linhas 26–41) =====
+    sugar_export_cristal_pvu_brl_saca = None
+    sugar_export_vhp_pvu_brl_saca = None
+    sugar_export_vhp_pvu_cents_lb = None
+    sugar_export_vhp_fob_cents_lb = None
+    sugar_export_cristal_pvu_cents_lb = None
+    sugar_export_cristal_fob_cents_lb = None
+    sugar_export_esalq_com_impostos = None
     
-    # FOB USD/ton = NY11 + Prêmio Físico
-    sugar_fob_usd_ton_cristal = ny_usd_ton + premio_fisico_usd_ton_cristal
-    sugar_fob_usd_ton_malha30 = ny_usd_ton + premio_fisico_usd_ton_malha30
+    if premio_fisico_fob is not None and fobizacao_container_brl_ton is not None and frete_export_brl_ton is not None:
+        # L26: =C26
+        # L27: =L26*22.04622
+        sugar_ny_usd_ton_export = sugar_ny_fob_cents_lb * 22.04622
+        
+        # L29: Sugar FOB USD/ton
+        # Excel: =L27+L28
+        sugar_fob_usd_ton_export = sugar_ny_usd_ton_export + premio_fisico_fob
+        
+        # L30: Sugar FOB R$/ton
+        # Excel: =L29*C4
+        sugar_fob_brl_ton_export = sugar_fob_usd_ton_export * cambio_usd_brl
+        
+        # L36: Equivalente Cristal BRL/Saca PVU
+        # Excel: =(L30-L31-L32)/20
+        sugar_export_cristal_pvu_brl_saca = (sugar_fob_brl_ton_export - fobizacao_container_brl_ton - frete_export_brl_ton) / SACAS_POR_TON
+        
+        # L33: Equivalente VHP BRL/saco PVU
+        # Excel: =L36-'Custo Cristal vs VHP'!$D$17
+        sugar_export_vhp_pvu_brl_saca = sugar_export_cristal_pvu_brl_saca - custo_cristal_vs_vhp
+        
+        # L34: Equivalente VHP Cents/lb PVU
+        # Excel: =(((L33*20)/22,0462)/$C$4)
+        sugar_export_vhp_pvu_cents_lb = (((sugar_export_vhp_pvu_brl_saca * SACAS_POR_TON) / FATOR_CWT_POR_TON) / cambio_usd_brl)
+        
+        # L35: Equivalente VHP Cents/lb FOB
+        # Excel: =((((((L33)*20)+$L$32+(C30*C4))/22.0462/$C$4)))
+        sugar_export_vhp_fob_cents_lb = ((((((sugar_export_vhp_pvu_brl_saca) * SACAS_POR_TON) + frete_export_brl_ton + (terminal_usd_ton * cambio_usd_brl)) / FATOR_CWT_POR_TON / cambio_usd_brl))
+        
+        # L37: Equivalente Cristal Cents/lb PVU
+        # Excel: =((L36*20)/22.0462)/C4
+        sugar_export_cristal_pvu_cents_lb = ((sugar_export_cristal_pvu_brl_saca * SACAS_POR_TON) / FATOR_CWT_POR_TON) / cambio_usd_brl
+        
+        # L38: Equivalente Cristal Cents/lb FOB
+        # Excel: =L29/22.04622
+        sugar_export_cristal_fob_cents_lb = sugar_fob_usd_ton_export / 22.04622
+        
+        # L41: Equivalente Esalq com Impostos
+        # Excel: =L36/0,9015
+        sugar_export_esalq_com_impostos = sugar_export_cristal_pvu_brl_saca / FATOR_ESALQ_SEM_IMPOSTOS
     
-    # FOB R$/ton
-    sugar_fob_brl_ton_cristal = sugar_fob_usd_ton_cristal * cambio_usd_brl
-    sugar_fob_brl_ton_malha30 = sugar_fob_usd_ton_malha30 * cambio_usd_brl
+    # ===== SUB-BLOCO 5.5 — CRISTAL EXPORTAÇÃO MALHA 30 (N/O, linhas 26–41) =====
+    sugar_malha30_cristal_pvu_brl_saca = None
+    sugar_malha30_vhp_pvu_brl_saca = None
+    sugar_malha30_vhp_pvu_cents_lb = None
+    sugar_malha30_vhp_fob_cents_lb = None
+    sugar_malha30_cristal_pvu_cents_lb = None
+    sugar_malha30_cristal_fob_cents_lb = None
+    sugar_malha30_esalq_com_impostos = None
     
-    # PVU R$/ton = FOB R$/ton - Fobização - Frete (fórmula da planilha)
-    sugar_pvu_brl_ton_cristal = sugar_fob_brl_ton_cristal - fobizacao_container_brl_ton - frete_export_sugar_brl_ton
-    sugar_pvu_brl_ton_malha30 = sugar_fob_brl_ton_malha30 - fobizacao_container_brl_ton - frete_export_sugar_brl_ton
-    
-    # PVU R$/saca (fórmula da planilha: /20)
-    sugar_pvu_brl_saca_cristal = sugar_pvu_brl_ton_cristal / SACAS_POR_TON
-    sugar_pvu_brl_saca_malha30 = sugar_pvu_brl_ton_malha30 / SACAS_POR_TON
-    
-    # PVU USD/ton
-    sugar_pvu_usd_ton_cristal = sugar_pvu_brl_ton_cristal / cambio_usd_brl
-    sugar_pvu_usd_ton_malha30 = sugar_pvu_brl_ton_malha30 / cambio_usd_brl
-    
-    # PVU cents/lb
-    sugar_pvu_cents_lb_cristal = converter_usd_ton_para_cents_lb(sugar_pvu_usd_ton_cristal)
-    sugar_pvu_cents_lb_malha30 = converter_usd_ton_para_cents_lb(sugar_pvu_usd_ton_malha30)
-    
-    # FOB cents/lb
-    sugar_fob_cents_lb_cristal = converter_usd_ton_para_cents_lb(sugar_fob_usd_ton_cristal)
-    sugar_fob_cents_lb_malha30 = converter_usd_ton_para_cents_lb(sugar_fob_usd_ton_malha30)
+    if premio_fisico_malha30 is not None and fobizacao_container_brl_ton is not None and frete_export_brl_ton is not None:
+        # O26: =C26
+        # O27: =O26*22.04622
+        sugar_ny_usd_ton_malha30 = sugar_ny_fob_cents_lb * 22.04622
+        
+        # O29: Sugar FOB USD/ton
+        # Excel: =O27+O28
+        sugar_fob_usd_ton_malha30 = sugar_ny_usd_ton_malha30 + premio_fisico_malha30
+        
+        # O30: Sugar FOB R$/ton
+        # Excel: =O29*C4
+        sugar_fob_brl_ton_malha30 = sugar_fob_usd_ton_malha30 * cambio_usd_brl
+        
+        # O36: Equivalente Cristal BRL/Saca PVU
+        # Excel: =(O30-O31-O32)/20
+        sugar_malha30_cristal_pvu_brl_saca = (sugar_fob_brl_ton_malha30 - fobizacao_container_brl_ton - frete_export_brl_ton) / SACAS_POR_TON
+        
+        # O33: Equivalente VHP BRL/saco PVU
+        # Excel: =O36-'Custo Cristal vs VHP'!$D$17
+        sugar_malha30_vhp_pvu_brl_saca = sugar_malha30_cristal_pvu_brl_saca - custo_cristal_vs_vhp
+        
+        # O34: Equivalente VHP Cents/lb PVU
+        # Excel: =(((O33*20)/22.0462)/$C$4)
+        sugar_malha30_vhp_pvu_cents_lb = (((sugar_malha30_vhp_pvu_brl_saca * SACAS_POR_TON) / FATOR_CWT_POR_TON) / cambio_usd_brl)
+        
+        # O35: Equivalente VHP Cents/lb FOB
+        # Excel: =((((((O33)*20)+$L$32+(C30*C4))/22.0462/$C$4)))
+        sugar_malha30_vhp_fob_cents_lb = ((((((sugar_malha30_vhp_pvu_brl_saca) * SACAS_POR_TON) + frete_export_brl_ton + (terminal_usd_ton * cambio_usd_brl)) / FATOR_CWT_POR_TON / cambio_usd_brl))
+        
+        # O37: Equivalente Cristal Cents/lb PVU
+        # Excel: =((O36*20)/22.0462)/C4
+        sugar_malha30_cristal_pvu_cents_lb = ((sugar_malha30_cristal_pvu_brl_saca * SACAS_POR_TON) / FATOR_CWT_POR_TON) / cambio_usd_brl
+        
+        # O38: Equivalente Cristal Cents/lb FOB
+        # Excel: =O29/22.04622
+        sugar_malha30_cristal_fob_cents_lb = sugar_fob_usd_ton_malha30 / 22.04622
+        
+        # O41: Equivalente Esalq com Impostos
+        # Excel: =O36/0,9015
+        sugar_malha30_esalq_com_impostos = sugar_malha30_cristal_pvu_brl_saca / FATOR_ESALQ_SEM_IMPOSTOS
     
     return {
-        'rota_cristal': 'Açúcar Cristal Exportação',
-        'rota_malha30': 'Açúcar Cristal Exportação Malha 30',
-        'sugar_pvu_brl_saca_cristal': sugar_pvu_brl_saca_cristal,
-        'sugar_pvu_brl_saca_malha30': sugar_pvu_brl_saca_malha30,
-        'sugar_pvu_cents_lb_cristal': sugar_pvu_cents_lb_cristal,
-        'sugar_pvu_cents_lb_malha30': sugar_pvu_cents_lb_malha30,
-        'sugar_fob_cents_lb_cristal': sugar_fob_cents_lb_cristal,
-        'sugar_fob_cents_lb_malha30': sugar_fob_cents_lb_malha30,
-        'preco_sugar_cristal_esalq_brl_saca': preco_sugar_cristal_esalq_brl_saca,
-        'preco_sugar_cristal_export_malha30_brl_saca': preco_sugar_cristal_export_malha30_brl_saca,
+        # SUB-BLOCO 5.1 — VHP
         'sugar_vhp_pvu_brl_saca': sugar_vhp_pvu_brl_saca,
         'sugar_vhp_pvu_cents_lb': sugar_vhp_pvu_cents_lb,
-        'sugar_vhp_fob_cents_lb': sugar_vhp_fob_cents_lb
+        'sugar_vhp_fob_cents_lb': sugar_vhp_fob_cents_lb,
+        # SUB-BLOCO 5.2 — ESALQ
+        'sugar_esalq_vhp_pvu_brl_saca': sugar_esalq_vhp_pvu_brl_saca,
+        'sugar_esalq_vhp_pvu_cents_lb': sugar_esalq_vhp_pvu_cents_lb,
+        'sugar_esalq_vhp_fob_cents_lb': sugar_esalq_vhp_fob_cents_lb,
+        'sugar_esalq_cristal_pvu_brl_saca': sugar_esalq_cristal_pvu_brl_saca,
+        'sugar_esalq_cristal_pvu_cents_lb': sugar_esalq_cristal_pvu_cents_lb,
+        'sugar_esalq_cristal_fob_cents_lb': sugar_esalq_cristal_fob_cents_lb,
+        # SUB-BLOCO 5.3 — MERCADO INTERNO
+        'sugar_interno_cristal_pvu_brl_saca': sugar_interno_cristal_pvu_brl_saca,
+        'sugar_interno_vhp_pvu_brl_saca': sugar_interno_vhp_pvu_brl_saca,
+        'sugar_interno_vhp_pvu_cents_lb': sugar_interno_vhp_pvu_cents_lb,
+        'sugar_interno_vhp_fob_cents_lb': sugar_interno_vhp_fob_cents_lb,
+        'sugar_interno_cristal_pvu_cents_lb': sugar_interno_cristal_pvu_cents_lb,
+        'sugar_interno_cristal_fob_cents_lb': sugar_interno_cristal_fob_cents_lb,
+        'sugar_interno_esalq_com_impostos': sugar_interno_esalq_com_impostos,
+        # SUB-BLOCO 5.4 — EXPORTAÇÃO
+        'sugar_export_cristal_pvu_brl_saca': sugar_export_cristal_pvu_brl_saca,
+        'sugar_export_vhp_pvu_brl_saca': sugar_export_vhp_pvu_brl_saca,
+        'sugar_export_vhp_pvu_cents_lb': sugar_export_vhp_pvu_cents_lb,
+        'sugar_export_vhp_fob_cents_lb': sugar_export_vhp_fob_cents_lb,
+        'sugar_export_cristal_pvu_cents_lb': sugar_export_cristal_pvu_cents_lb,
+        'sugar_export_cristal_fob_cents_lb': sugar_export_cristal_fob_cents_lb,
+        'sugar_export_esalq_com_impostos': sugar_export_esalq_com_impostos,
+        # SUB-BLOCO 5.5 — MALHA 30
+        'sugar_malha30_cristal_pvu_brl_saca': sugar_malha30_cristal_pvu_brl_saca,
+        'sugar_malha30_vhp_pvu_brl_saca': sugar_malha30_vhp_pvu_brl_saca,
+        'sugar_malha30_vhp_pvu_cents_lb': sugar_malha30_vhp_pvu_cents_lb,
+        'sugar_malha30_vhp_fob_cents_lb': sugar_malha30_vhp_fob_cents_lb,
+        'sugar_malha30_cristal_pvu_cents_lb': sugar_malha30_cristal_pvu_cents_lb,
+        'sugar_malha30_cristal_fob_cents_lb': sugar_malha30_cristal_fob_cents_lb,
+        'sugar_malha30_esalq_com_impostos': sugar_malha30_esalq_com_impostos
     }
 
 # ============================================================================
