@@ -1412,6 +1412,11 @@ df_decisao = df_decisao.sort_values('VHP PVU (R$/saca)', ascending=False)
 # Encontra a melhor rota
 melhor_rota = df_decisao.iloc[0]
 
+# Extrai valores da melhor rota para evitar problemas com $ em f-strings
+vhp_saca_melhor = melhor_rota['VHP PVU (R$/saca)']
+vhp_cents_melhor = melhor_rota['VHP PVU (cents/lb)']
+pvu_melhor = melhor_rota.get('PVU (R$/m³)')
+
 # Resumo visual das top 3 rotas
 st.markdown("### 🏆 Top 3 Rotas Mais Atrativas")
 
@@ -1420,33 +1425,35 @@ cols_top3 = st.columns(3)
 
 for i, (idx, row) in enumerate(top3.iterrows()):
     with cols_top3[i]:
+        vhp_saca_row = row['VHP PVU (R$/saca)']
+        vhp_cents_row = row['VHP PVU (cents/lb)']
         if i == 0:
             st.success(f"""
             **🥇 {row['Rota']}**
             
-            **💰 R$ {row['VHP PVU (R$/saca)']:,.2f}/saca**
+            **💰 R$ {vhp_saca_row:,.2f}/saca**
             
-            **💵 {row['VHP PVU (cents/lb)']:,.2f} cents/lb**
+            **💵 {vhp_cents_row:,.2f} cents/lb**
             """)
         elif i == 1:
-            diff_1 = row['VHP PVU (R$/saca)'] - melhor_rota['VHP PVU (R$/saca)']
+            diff_1 = vhp_saca_row - melhor_rota['VHP PVU (R$/saca)']
             st.info(f"""
             **🥈 {row['Rota']}**
             
-            **💰 R$ {row['VHP PVU (R$/saca)']:,.2f}/saca**
+            **💰 R$ {vhp_saca_row:,.2f}/saca**
             
-            **💵 {row['VHP PVU (cents/lb)']:,.2f} cents/lb**
+            **💵 {vhp_cents_row:,.2f} cents/lb**
             
             Diferença: R$ {diff_1:+,.2f}/saca
             """)
         else:
-            diff_2 = row['VHP PVU (R$/saca)'] - melhor_rota['VHP PVU (R$/saca)']
+            diff_2 = vhp_saca_row - melhor_rota['VHP PVU (R$/saca)']
             st.warning(f"""
             **🥉 {row['Rota']}**
             
-            **💰 R$ {row['VHP PVU (R$/saca)']:,.2f}/saca**
+            **💰 R$ {vhp_saca_row:,.2f}/saca**
             
-            **💵 {row['VHP PVU (cents/lb)']:,.2f} cents/lb**
+            **💵 {vhp_cents_row:,.2f} cents/lb**
             
             Diferença: R$ {diff_2:+,.2f}/saca
             """)
@@ -1457,8 +1464,6 @@ st.divider()
 st.markdown("### ✅ **MELHOR OPÇÃO PARA PRODUZIR**")
 
 # Container destacado para a melhor rota
-vhp_saca_melhor = melhor_rota['VHP PVU (R$/saca)']
-vhp_cents_melhor = melhor_rota['VHP PVU (cents/lb)']
 st.success(f"""
 **🎯 {melhor_rota['Rota']}**
 
@@ -1513,10 +1518,10 @@ df_display_decisao = df_decisao.copy()
 
 # Adiciona coluna de diferença percentual e absoluta (mantém valores numéricos para highlight)
 df_display_decisao['Diferença Absoluta (R$/saca)'] = df_decisao['VHP PVU (R$/saca)'].apply(
-    lambda x: x - melhor_rota['VHP PVU (R$/saca)']
+    lambda x: x - vhp_saca_melhor
 )
 df_display_decisao['Diferença Percentual'] = df_decisao['VHP PVU (R$/saca)'].apply(
-    lambda x: ((x - melhor_rota['VHP PVU (R$/saca)']) / melhor_rota['VHP PVU (R$/saca)']) * 100
+    lambda x: ((x - vhp_saca_melhor) / vhp_saca_melhor) * 100
 )
 
 # Renomeia coluna Rota primeiro
