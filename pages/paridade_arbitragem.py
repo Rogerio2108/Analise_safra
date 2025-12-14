@@ -20,8 +20,8 @@ import numpy as np
 # ============================================================================
 
 # Símbolo de moeda (definido como constante para evitar problemas com $ em f-strings no Python 3.13)
-# Usando concatenação para evitar problemas de parsing
-SIMBOLO_REAL = "R" + "$"
+# Usando string raw para evitar problemas de parsing
+SIMBOLO_REAL = r"R$"
 
 # Conversão açúcar
 SACAS_POR_TON = 20
@@ -953,7 +953,7 @@ col_exp1, col_exp2 = st.columns(2)
 
 with col_exp1:
     st.markdown("**Anidro Exportação**")
-    st.caption("💡 Preço FOB em USD convertido para R$ e descontados custos logísticos")
+    st.caption("💡 Preço FOB em USD convertido para BRL e descontados custos logísticos")
     preco_anidro_fob_usd_m3 = st.number_input(
         "Preço Anidro FOB (USD/m³)",
         value=600.0,
@@ -997,7 +997,7 @@ with col_exp1:
 
 with col_exp2:
     st.markdown("**Hidratado Exportação**")
-    st.caption("💡 Preço FOB em USD convertido para R$ e descontados custos logísticos")
+    st.caption("💡 Preço FOB em USD convertido para BRL e descontados custos logísticos")
     preco_hidratado_fob_usd_m3 = st.number_input(
         "Preço Hidratado FOB (USD/m³)",
         value=550.0,
@@ -1631,7 +1631,7 @@ fig.add_trace(
         marker_color=cores,
         text=[formatar_moeda(v) for v in vhp_saca_clean],
         textposition='outside',
-        hovertemplate='<b>%{x}</b><br>💰 VHP PVU: R$ %{y:,.2f}/saca<extra></extra>',
+        hovertemplate='<b>%{x}</b><br>💰 VHP PVU: BRL %{y:,.2f}/saca<extra></extra>',
         marker_line=dict(color='white', width=2)
     ),
     row=1, col=1
@@ -1668,7 +1668,7 @@ fig.update_layout(
 
 fig.update_xaxes(tickangle=-45, tickfont=dict(color="#ffffff", size=10), row=1, col=1)
 fig.update_xaxes(tickangle=-45, tickfont=dict(color="#ffffff", size=10), row=1, col=2)
-fig.update_yaxes(title="R$/saca", title_font=dict(color="#ffffff"), tickfont=dict(color="#ffffff"), row=1, col=1)
+fig.update_yaxes(title="BRL/saca", title_font=dict(color="#ffffff"), tickfont=dict(color="#ffffff"), row=1, col=1)
 fig.update_yaxes(title="cents/lb", title_font=dict(color="#ffffff"), tickfont=dict(color="#ffffff"), row=1, col=2)
 
 st.plotly_chart(fig, use_container_width=True)
