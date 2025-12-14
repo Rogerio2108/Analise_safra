@@ -1428,35 +1428,35 @@ for i, (idx, row) in enumerate(top3.iterrows()):
         vhp_saca_row = row['VHP PVU (R$/saca)']
         vhp_cents_row = row['VHP PVU (cents/lb)']
         if i == 0:
-            st.success(f"""
-            **🥇 {row['Rota']}**
-            
-            **💰 R$ {vhp_saca_row:,.2f}/saca**
-            
-            **💵 {vhp_cents_row:,.2f} cents/lb**
-            """)
+            rota_row = row['Rota']
+            msg_1 = f"""**🥇 {rota_row}**
+
+**💰 R$ {vhp_saca_row:,.2f}/saca**
+
+**💵 {vhp_cents_row:,.2f} cents/lb**"""
+            st.success(msg_1)
         elif i == 1:
-            diff_1 = vhp_saca_row - melhor_rota['VHP PVU (R$/saca)']
-            st.info(f"""
-            **🥈 {row['Rota']}**
-            
-            **💰 R$ {vhp_saca_row:,.2f}/saca**
-            
-            **💵 {vhp_cents_row:,.2f} cents/lb**
-            
-            Diferença: R$ {diff_1:+,.2f}/saca
-            """)
+            diff_1 = vhp_saca_row - vhp_saca_melhor
+            rota_row = row['Rota']
+            msg_2 = f"""**🥈 {rota_row}**
+
+**💰 R$ {vhp_saca_row:,.2f}/saca**
+
+**💵 {vhp_cents_row:,.2f} cents/lb**
+
+Diferença: R$ {diff_1:+,.2f}/saca"""
+            st.info(msg_2)
         else:
-            diff_2 = vhp_saca_row - melhor_rota['VHP PVU (R$/saca)']
-            st.warning(f"""
-            **🥉 {row['Rota']}**
-            
-            **💰 R$ {vhp_saca_row:,.2f}/saca**
-            
-            **💵 {vhp_cents_row:,.2f} cents/lb**
-            
-            Diferença: R$ {diff_2:+,.2f}/saca
-            """)
+            diff_2 = vhp_saca_row - vhp_saca_melhor
+            rota_row = row['Rota']
+            msg_3 = f"""**🥉 {rota_row}**
+
+**💰 R$ {vhp_saca_row:,.2f}/saca**
+
+**💵 {vhp_cents_row:,.2f} cents/lb**
+
+Diferença: R$ {diff_2:+,.2f}/saca"""
+            st.warning(msg_3)
 
 st.divider()
 
@@ -1464,13 +1464,13 @@ st.divider()
 st.markdown("### ✅ **MELHOR OPÇÃO PARA PRODUZIR**")
 
 # Container destacado para a melhor rota
-st.success(f"""
-**🎯 {melhor_rota['Rota']}**
+rota_melhor = melhor_rota['Rota']
+mensagem_melhor = f"""**🎯 {rota_melhor}**
 
 **💰 VHP PVU: R$ {vhp_saca_melhor:,.2f}/saca** | **💵 {vhp_cents_melhor:,.2f} cents/lb**
 
-Esta é a rota que paga **MAIS** em equivalente VHP. Todas as outras rotas pagam menos.
-""", icon="✅")
+Esta é a rota que paga **MAIS** em equivalente VHP. Todas as outras rotas pagam menos."""
+st.success(mensagem_melhor, icon="✅")
 
 # Cards com métricas
 col1, col2, col3, col4 = st.columns(4)
