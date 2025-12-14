@@ -1407,15 +1407,21 @@ if preco_sugar_cristal_export_malha30_brl_saca is not None and preco_sugar_crist
     })
 
 df_decisao = pd.DataFrame(dados_decisao)
-df_decisao = df_decisao.sort_values('VHP PVU (R$/saca)', ascending=False)
+
+# Define nomes de colunas como variáveis para evitar problemas com $ em Python 3.13
+COL_VHP_SACA = 'VHP PVU (R$/saca)'
+COL_VHP_CENTS = 'VHP PVU (cents/lb)'
+COL_PVU = 'PVU (R$/m³)'
+
+df_decisao = df_decisao.sort_values(COL_VHP_SACA, ascending=False)
 
 # Encontra a melhor rota
 melhor_rota = df_decisao.iloc[0]
 
-# Extrai valores da melhor rota para evitar problemas com $ em f-strings
-vhp_saca_melhor = melhor_rota['VHP PVU (R$/saca)']
-vhp_cents_melhor = melhor_rota['VHP PVU (cents/lb)']
-pvu_melhor = melhor_rota.get('PVU (R$/m³)')
+# Extrai valores da melhor rota usando .get() para evitar problemas com $ em Python 3.13
+vhp_saca_melhor = melhor_rota.get(COL_VHP_SACA, 0)
+vhp_cents_melhor = melhor_rota.get(COL_VHP_CENTS, 0)
+pvu_melhor = melhor_rota.get(COL_PVU)
 
 # Resumo visual das top 3 rotas
 st.markdown("### 🏆 Top 3 Rotas Mais Atrativas")
@@ -1425,8 +1431,8 @@ cols_top3 = st.columns(3)
 
 for i, (idx, row) in enumerate(top3.iterrows()):
     with cols_top3[i]:
-        vhp_saca_row = row['VHP PVU (R$/saca)']
-        vhp_cents_row = row['VHP PVU (cents/lb)']
+        vhp_saca_row = row.get(COL_VHP_SACA, 0)
+        vhp_cents_row = row.get(COL_VHP_CENTS, 0)
         if i == 0:
             rota_row = row['Rota']
             msg_1 = f"""**🥇 {rota_row}**
@@ -1490,7 +1496,7 @@ with col2:
 with col3:
     st.metric(
         "💵 VHP PVU (cents/lb)",
-        f"{melhor_rota['VHP PVU (cents/lb)']:,.2f}",
+        f"{vhp_cents_melhor:,.2f}",
         delta=None
     )
 with col4:
@@ -1517,10 +1523,10 @@ st.markdown("### 📊 Comparação Completa de Todas as Rotas")
 df_display_decisao = df_decisao.copy()
 
 # Adiciona coluna de diferença percentual e absoluta (mantém valores numéricos para highlight)
-df_display_decisao['Diferença Absoluta (R$/saca)'] = df_decisao['VHP PVU (R$/saca)'].apply(
+df_display_decisao['Diferença Absoluta (R$/saca)'] = df_decisao[COL_VHP_SACA].apply(
     lambda x: x - vhp_saca_melhor
 )
-df_display_decisao['Diferença Percentual'] = df_decisao['VHP PVU (R$/saca)'].apply(
+df_display_decisao['Diferença Percentual'] = df_decisao[COL_VHP_SACA].apply(
     lambda x: ((x - vhp_saca_melhor) / vhp_saca_melhor) * 100
 )
 
@@ -1530,9 +1536,9 @@ df_display_decisao = df_display_decisao.rename(columns={
 })
 
 # Formata valores (depois de renomear)
-df_display_decisao['💰 VHP PVU (R$/saca)'] = df_decisao['VHP PVU (R$/saca)'].apply(lambda x: f"R$ {x:,.2f}")
-df_display_decisao['💵 VHP PVU (cents/lb)'] = df_decisao['VHP PVU (cents/lb)'].apply(lambda x: f"{x:,.2f}")
-df_display_decisao['🏭 PVU (R$/m³)'] = df_decisao['PVU (R$/m³)'].apply(lambda x: f"R$ {x:,.2f}" if x is not None else "-")
+df_display_decisao['💰 VHP PVU (R$/saca)'] = df_decisao[COL_VHP_SACA].apply(lambda x: f"R$ {x:,.2f}")
+df_display_decisao['💵 VHP PVU (cents/lb)'] = df_decisao[COL_VHP_CENTS].apply(lambda x: f"{x:,.2f}")
+df_display_decisao['🏭 PVU (R$/m³)'] = df_decisao[COL_PVU].apply(lambda x: f"R$ {x:,.2f}" if x is not None else "-")
 df_display_decisao['📉 Diferença Absoluta'] = df_display_decisao['Diferença Absoluta (R$/saca)'].apply(lambda x: f"R$ {x:+,.2f}")
 df_display_decisao['📊 Diferença %'] = df_display_decisao['Diferença Percentual'].apply(lambda x: f"{x:+.2f}%")
 
@@ -1599,8 +1605,8 @@ st.subheader("📈 Visualização Gráfica")
 
 # Prepara dados para gráfico (usando df_decisao que já está ordenado)
 rotas_clean = df_decisao['Rota'].tolist()
-vhp_saca_clean = df_decisao['VHP PVU (R$/saca)'].tolist()
-vhp_cents_clean = df_decisao['VHP PVU (cents/lb)'].tolist()
+vhp_saca_clean = df_decisao[COL_VHP_SACA].tolist()
+vhp_cents_clean = df_decisao[COL_VHP_CENTS].tolist()
 tipos = df_decisao['Tipo'].tolist()
 
 # Define cores por tipo
