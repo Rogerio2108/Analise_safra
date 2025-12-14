@@ -152,16 +152,39 @@ def formatar_moeda(valor, casas=2):
     """Formata valor com símbolo de moeda usando concatenação para evitar problemas de parsing."""
     if valor is None:
         return "-"
-    formato = "{:,.%df}" % casas
-    valor_formatado = formato.format(valor)
+    if casas == 2:
+        valor_formatado = "{:,.2f}".format(valor)
+    elif casas == 0:
+        valor_formatado = "{:,.0f}".format(valor)
+    elif casas == 1:
+        valor_formatado = "{:,.1f}".format(valor)
+    elif casas == 3:
+        valor_formatado = "{:,.3f}".format(valor)
+    elif casas == 4:
+        valor_formatado = "{:,.4f}".format(valor)
+    else:
+        # Fallback para outros valores
+        valor_formatado = str(round(valor, casas))
     return SIMBOLO_REAL + " " + valor_formatado
 
 def formatar_moeda_com_sinal(valor, casas=2):
     """Formata valor com símbolo de moeda e sinal (+/-) usando concatenação."""
     if valor is None:
         return "-"
-    formato = "{:+,.%df}" % casas
-    valor_formatado = formato.format(valor)
+    if casas == 2:
+        valor_formatado = "{:+,.2f}".format(valor)
+    elif casas == 0:
+        valor_formatado = "{:+,.0f}".format(valor)
+    elif casas == 1:
+        valor_formatado = "{:+,.1f}".format(valor)
+    elif casas == 3:
+        valor_formatado = "{:+,.3f}".format(valor)
+    elif casas == 4:
+        valor_formatado = "{:+,.4f}".format(valor)
+    else:
+        # Fallback para outros valores
+        sinal = "+" if valor >= 0 else ""
+        valor_formatado = sinal + str(round(valor, casas))
     return SIMBOLO_REAL + " " + valor_formatado
 
 # ============================================================================
