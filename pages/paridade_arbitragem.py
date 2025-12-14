@@ -490,7 +490,7 @@ def calc_paridade_acucar(
     premio_fisico_malha30=None,  # O28
     fobizacao_container_brl_ton=None,  # L31
     frete_export_brl_ton=None,  # L32
-    custo_cristal_vs_vhp=0.0  # 'Custo Cristal vs VHP'!$D$17
+    custo_cristal_vs_vhp=0.0  # Custo Cristal vs VHP (referencia Excel D17)
 ):
     """
     BLOCO 5 — PARIDADE AÇÚCAR (5 sub-blocos)
@@ -1797,8 +1797,10 @@ with tabs[4]:
     st.markdown("**Mercado Interno**")
     col_a3, col_a4 = st.columns(2)
     with col_a3:
-        st.metric("SUGAR Cristal Esalq", f"R$ {preco_sugar_cristal_esalq_brl_saca:,.2f}/saca")
+        esalq_saca = preco_sugar_cristal_esalq_brl_saca
+        st.metric("SUGAR Cristal Esalq", f"R$ {esalq_saca:,.2f}/saca")
     with col_a4:
-        preco_malha30_str = f"R$ {preco_sugar_cristal_export_malha30_brl_saca:,.2f}/saca"
+        malha30_saca = preco_sugar_cristal_export_malha30_brl_saca
+        preco_malha30_str = f"R$ {malha30_saca:,.2f}/saca"
         st.metric("Cristal Exportação Malha 30", preco_malha30_str)
 
