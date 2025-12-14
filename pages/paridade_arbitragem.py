@@ -763,7 +763,8 @@ def calc_paridade_acucar(
 # INTERFACE STREAMLIT
 # ============================================================================
 
-st.set_page_config(page_title="Análise de Paridades e Arbitragem", layout="wide")
+# Nota: st.set_page_config não pode ser usado em páginas (arquivos em pages/)
+# A configuração da página é feita no arquivo principal
 
 st.title("📊 Análise de Paridades e Arbitragem")
 st.markdown("""
