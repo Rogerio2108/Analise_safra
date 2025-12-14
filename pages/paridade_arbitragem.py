@@ -202,7 +202,7 @@ def calc_paridade_anidro_exportacao(
     frete_brl_ton=None  # C32 (do bloco açúcar)
 ):
     """
-    BLOCO 1 — ANIDRO EXPORTAÇÃO (colunas B/C, linhas 3–12)
+    BLOCO 1 - ANIDRO EXPORTACAO (colunas B/C, linhas 3-12)
     
     Calcula paridade de etanol anidro para exportação seguindo EXATAMENTE as fórmulas da planilha Excel.
     
@@ -261,7 +261,7 @@ def calc_paridade_hidratado_exportacao(
     frete_brl_ton=None  # C32 (do bloco açúcar)
 ):
     """
-    BLOCO 2 — HIDRATADO EXPORTAÇÃO (colunas E/F, linhas 3–11)
+    BLOCO 2 - HIDRATADO EXPORTACAO (colunas E/F, linhas 3-11)
     
     Calcula paridade de etanol hidratado para exportação seguindo EXATAMENTE as fórmulas da planilha Excel.
     
@@ -322,7 +322,7 @@ def calc_paridade_anidro_interno(
     preco_hidratado_com_impostos_brl_m3=None  # L7 (para I22)
 ):
     """
-    BLOCO 3 — ANIDRO MERCADO INTERNO (colunas H/I, linhas 3–22 e 14–19)
+    BLOCO 3 - ANIDRO MERCADO INTERNO (colunas H/I, linhas 3-22 e 14-19)
     
     Calcula paridade de etanol anidro para mercado interno seguindo EXATAMENTE as fórmulas da planilha Excel.
     
@@ -436,9 +436,9 @@ def calc_paridade_hidratado_interno(
     fobizacao_container_brl_ton=None  # L31 (para L19)
 ):
     """
-    BLOCO 4 — HIDRATADO MERCADO INTERNO (colunas K/L, linhas 3–22 e 14–19)
+    BLOCO 4 - HIDRATADO MERCADO INTERNO (colunas K/L, linhas 3-22 e 14-19)
     
-    Calcula paridade de etanol hidratado para mercado interno seguindo EXATAMENTE as fórmulas da planilha Excel.
+    Calcula paridade de etanol hidratado para mercado interno seguindo EXATAMENTE as formulas da planilha Excel.
     
     Args:
         preco_hidratado_rp_com_impostos_brl_m3: L3 - Preço RP com impostos BRL/m³
@@ -554,7 +554,7 @@ def calc_paridade_acucar(
     custo_cristal_vs_vhp=0.0  # Custo Cristal vs VHP (referencia Excel D17)
 ):
     """
-    BLOCO 5 — PARIDADE AÇÚCAR (5 sub-blocos)
+    BLOCO 5 - PARIDADE ACUCAR (5 sub-blocos)
     
     Calcula paridade de açúcar seguindo EXATAMENTE as fórmulas da planilha Excel.
     
@@ -577,7 +577,7 @@ def calc_paridade_acucar(
     Returns:
         dict: Dicionário com todos os valores calculados dos 5 sub-blocos
     """
-    # ===== SUB-BLOCO 5.1 — SUGAR VHP (B/C, linhas 26–35) =====
+    # ===== SUB-BLOCO 5.1 - SUGAR VHP (B/C, linhas 26-35) =====
     # C29: Sugar NY + POL
     # Excel: =(C26+C27)*(1+C28)
     sugar_ny_pol_cents_lb = (sugar_ny_fob_cents_lb + premio_desconto_cents_lb) * (1 + premio_pol)
@@ -594,7 +594,7 @@ def calc_paridade_acucar(
     # Excel: =C29
     sugar_vhp_fob_cents_lb = sugar_ny_pol_cents_lb
     
-    # ===== SUB-BLOCO 5.2 — CRISTAL ESALQ (E/F, linhas 26–38) =====
+    # ===== SUB-BLOCO 5.2 - CRISTAL ESALQ (E/F, linhas 26-38) =====
     sugar_esalq_vhp_pvu_brl_saca = None
     sugar_esalq_vhp_pvu_cents_lb = None
     sugar_esalq_vhp_fob_cents_lb = None
@@ -630,7 +630,7 @@ def calc_paridade_acucar(
         if frete_export_brl_ton is not None and fobizacao_container_brl_ton is not None:
             sugar_esalq_cristal_fob_cents_lb = (((sugar_esalq_cristal_pvu_brl_saca * SACAS_POR_TON) + frete_export_brl_ton + fobizacao_container_brl_ton) / 22.04622) / cambio_usd_brl
     
-    # ===== SUB-BLOCO 5.3 — CRISTAL MERCADO INTERNO / PVU (H/I, linhas 26–41) =====
+    # ===== SUB-BLOCO 5.3 - CRISTAL MERCADO INTERNO / PVU (H/I, linhas 26-41) =====
     sugar_interno_cristal_pvu_brl_saca = None
     sugar_interno_vhp_pvu_brl_saca = None
     sugar_interno_vhp_pvu_cents_lb = None
@@ -682,7 +682,7 @@ def calc_paridade_acucar(
         # Excel: =I36/0.9015
         sugar_interno_esalq_com_impostos = sugar_interno_cristal_pvu_brl_saca / FATOR_ESALQ_SEM_IMPOSTOS
     
-    # ===== SUB-BLOCO 5.4 — CRISTAL EXPORTAÇÃO (K/L, linhas 26–41) =====
+    # ===== SUB-BLOCO 5.4 - CRISTAL EXPORTACAO (K/L, linhas 26-41) =====
     sugar_export_cristal_pvu_brl_saca = None
     sugar_export_vhp_pvu_brl_saca = None
     sugar_export_vhp_pvu_cents_lb = None
@@ -732,7 +732,7 @@ def calc_paridade_acucar(
         # Excel: =L36/0,9015
         sugar_export_esalq_com_impostos = sugar_export_cristal_pvu_brl_saca / FATOR_ESALQ_SEM_IMPOSTOS
     
-    # ===== SUB-BLOCO 5.5 — CRISTAL EXPORTAÇÃO MALHA 30 (N/O, linhas 26–41) =====
+    # ===== SUB-BLOCO 5.5 - CRISTAL EXPORTACAO MALHA 30 (N/O, linhas 26-41) =====
     sugar_malha30_cristal_pvu_brl_saca = None
     sugar_malha30_vhp_pvu_brl_saca = None
     sugar_malha30_vhp_pvu_cents_lb = None
@@ -783,18 +783,18 @@ def calc_paridade_acucar(
         sugar_malha30_esalq_com_impostos = sugar_malha30_cristal_pvu_brl_saca / FATOR_ESALQ_SEM_IMPOSTOS
     
     return {
-        # SUB-BLOCO 5.1 — VHP
+        # SUB-BLOCO 5.1 - VHP
         'sugar_vhp_pvu_brl_saca': sugar_vhp_pvu_brl_saca,
         'sugar_vhp_pvu_cents_lb': sugar_vhp_pvu_cents_lb,
         'sugar_vhp_fob_cents_lb': sugar_vhp_fob_cents_lb,
-        # SUB-BLOCO 5.2 — ESALQ
+        # SUB-BLOCO 5.2 - ESALQ
         'sugar_esalq_vhp_pvu_brl_saca': sugar_esalq_vhp_pvu_brl_saca,
         'sugar_esalq_vhp_pvu_cents_lb': sugar_esalq_vhp_pvu_cents_lb,
         'sugar_esalq_vhp_fob_cents_lb': sugar_esalq_vhp_fob_cents_lb,
         'sugar_esalq_cristal_pvu_brl_saca': sugar_esalq_cristal_pvu_brl_saca,
         'sugar_esalq_cristal_pvu_cents_lb': sugar_esalq_cristal_pvu_cents_lb,
         'sugar_esalq_cristal_fob_cents_lb': sugar_esalq_cristal_fob_cents_lb,
-        # SUB-BLOCO 5.3 — MERCADO INTERNO
+        # SUB-BLOCO 5.3 - MERCADO INTERNO
         'sugar_interno_cristal_pvu_brl_saca': sugar_interno_cristal_pvu_brl_saca,
         'sugar_interno_vhp_pvu_brl_saca': sugar_interno_vhp_pvu_brl_saca,
         'sugar_interno_vhp_pvu_cents_lb': sugar_interno_vhp_pvu_cents_lb,
@@ -802,7 +802,7 @@ def calc_paridade_acucar(
         'sugar_interno_cristal_pvu_cents_lb': sugar_interno_cristal_pvu_cents_lb,
         'sugar_interno_cristal_fob_cents_lb': sugar_interno_cristal_fob_cents_lb,
         'sugar_interno_esalq_com_impostos': sugar_interno_esalq_com_impostos,
-        # SUB-BLOCO 5.4 — EXPORTAÇÃO
+        # SUB-BLOCO 5.4 - EXPORTACAO
         'sugar_export_cristal_pvu_brl_saca': sugar_export_cristal_pvu_brl_saca,
         'sugar_export_vhp_pvu_brl_saca': sugar_export_vhp_pvu_brl_saca,
         'sugar_export_vhp_pvu_cents_lb': sugar_export_vhp_pvu_cents_lb,
@@ -810,7 +810,7 @@ def calc_paridade_acucar(
         'sugar_export_cristal_pvu_cents_lb': sugar_export_cristal_pvu_cents_lb,
         'sugar_export_cristal_fob_cents_lb': sugar_export_cristal_fob_cents_lb,
         'sugar_export_esalq_com_impostos': sugar_export_esalq_com_impostos,
-        # SUB-BLOCO 5.5 — MALHA 30
+        # SUB-BLOCO 5.5 - MALHA 30
         'sugar_malha30_cristal_pvu_brl_saca': sugar_malha30_cristal_pvu_brl_saca,
         'sugar_malha30_vhp_pvu_brl_saca': sugar_malha30_vhp_pvu_brl_saca,
         'sugar_malha30_vhp_pvu_cents_lb': sugar_malha30_vhp_pvu_cents_lb,
