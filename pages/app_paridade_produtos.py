@@ -116,16 +116,34 @@ with st.sidebar:
         format="%.4f"
     )
     
-    st.subheader("Custos Adicionais")
-    custo_c5 = st.number_input("Custo C5", value=0.0, step=0.1, format="%.2f")
-    custo_c6 = st.number_input("Custo C6", value=0.0, step=0.1, format="%.2f")
-    custo_c7 = st.number_input("Custo C7", value=0.0, step=0.1, format="%.2f")
-    custo_c8 = st.number_input(
-        "Custos Adicionais Demurrage",
+    st.subheader("Custos Adicionais (para cálculos de equivalentes)")
+    custo_c5 = st.number_input(
+        "Custo Adicional 1 (para cálculo VHP FOB)",
         value=0.0,
         step=0.1,
         format="%.2f",
-        help="Se vazio, alguns cálculos darão erro de divisão por zero"
+        help="Usado no cálculo de equivalente VHP Cents/lb FOB"
+    )
+    custo_c6 = st.number_input(
+        "Custo Adicional 2 (para cálculo Cristal PVU)",
+        value=0.0,
+        step=0.1,
+        format="%.2f",
+        help="Usado no cálculo de equivalente Cristal BRL/saca PVU"
+    )
+    custo_c7 = st.number_input(
+        "Custo Adicional 3 (para cálculo Cristal PVU Cents/lb)",
+        value=0.0,
+        step=0.1,
+        format="%.2f",
+        help="Usado no cálculo de equivalente Cristal Cents/lb PVU"
+    )
+    custo_c8 = st.number_input(
+        "Custo Adicional 4 - Demurrage (para cálculo Cristal FOB)",
+        value=0.0,
+        step=0.1,
+        format="%.2f",
+        help="Usado no cálculo de equivalente Cristal Cents/lb FOB. Se vazio, dará erro de divisão por zero"
     )
     
     st.subheader("Parâmetros Açúcar")
