@@ -10,14 +10,14 @@ import pandas as pd
 import sys
 from pathlib import Path
 
-# Adiciona o diretório pages ao path se necessário
+# Adiciona o diretório pages ao path
 current_dir = Path(__file__).parent
 if str(current_dir) not in sys.path:
     sys.path.insert(0, str(current_dir))
 
-# Tenta importação relativa primeiro (para quando executado como módulo)
+# Importação absoluta (mais confiável no Streamlit Cloud)
 try:
-    from .paridade_produtos import (
+    from paridade_produtos import (
         parse_ptbr_number,
         fmt_br,
         calc_anidro_exportacao,
@@ -26,23 +26,17 @@ try:
         calc_hidratado_mi,
         calc_acucar
     )
-except (ImportError, ValueError):
-    # Fallback para importação absoluta (para Streamlit Cloud)
-    try:
-        from paridade_produtos import (
-            parse_ptbr_number,
-            fmt_br,
-            calc_anidro_exportacao,
-            calc_hidratado_exportacao,
-            calc_anidro_mi,
-            calc_hidratado_mi,
-            calc_acucar
-        )
-    except ImportError as e:
-        st.error(f"⚠️ Erro ao importar funções de paridade_produtos.py: {e}")
-        st.error(f"Diretório atual: {current_dir}")
-        st.error(f"Arquivos no diretório: {list(current_dir.glob('*.py'))}")
-        st.stop()
+except ImportError as e:
+    st.error(f"⚠️ Erro ao importar funções de paridade_produtos.py")
+    st.error(f"Erro: {str(e)}")
+    st.error(f"Diretório atual: {current_dir}")
+    st.error(f"Arquivos no diretório: {[f.name for f in current_dir.glob('*.py')]}")
+    st.stop()
+except SyntaxError as e:
+    st.error(f"⚠️ Erro de sintaxe em paridade_produtos.py")
+    st.error(f"Erro: {str(e)}")
+    st.error(f"Linha: {e.lineno if hasattr(e, 'lineno') else 'N/A'}")
+    st.stop()
 
 st.set_page_config(page_title="Paridade Produtos", layout="wide")
 

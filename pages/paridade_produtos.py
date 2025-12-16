@@ -7,8 +7,6 @@ usadas pela interface Streamlit app_paridade_produtos.py
 ================================================================================
 """
 
-import re
-
 # ============================================================================
 # CONSTANTES
 # ============================================================================
@@ -145,9 +143,9 @@ def calc_anidro_exportacao(inputs, globais):
         # Equivalente Cents/lb FOB
         if terminal_usd_ton and frete_brl_ton:
             vhp_cents_lb_fob = (((((preco_liquido_pvu) / FATOR_M3_ANIDRO_EXPORT_PARA_SACA_VHP) * SACAS_POR_TON) + frete_brl_ton + (terminal_usd_ton * cambio_brl_usd)) / FATOR_CWT_POR_TON / cambio_brl_usd) / FATOR_DESCONTO_VHP_FOB
-            values['vhp_cents_lb_fob'] = vhp_cents_lb_fob
         else:
-            values['vhp_cents_lb_fob'] = None
+            vhp_cents_lb_fob = None
+        values['vhp_cents_lb_fob'] = vhp_cents_lb_fob
             
     except Exception as e:
         errors.append(f"Erro ao calcular anidro exportação: {str(e)}")
@@ -203,9 +201,9 @@ def calc_hidratado_exportacao(inputs, globais):
         # Equivalente Cents/lb FOB
         if terminal_usd_ton and frete_brl_ton:
             vhp_cents_lb_fob = ((((((preco_liquido_pvu) / 32.669) * SACAS_POR_TON) + frete_brl_ton + (terminal_usd_ton * cambio_brl_usd)) / FATOR_CWT_POR_TON / cambio_brl_usd) / FATOR_DESCONTO_VHP_FOB)
-            values['vhp_cents_lb_fob'] = vhp_cents_lb_fob
         else:
-            values['vhp_cents_lb_fob'] = None
+            vhp_cents_lb_fob = None
+        values['vhp_cents_lb_fob'] = vhp_cents_lb_fob
             
     except Exception as e:
         errors.append(f"Erro ao calcular hidratado exportação: {str(e)}")
@@ -277,9 +275,9 @@ def calc_anidro_mi(inputs, deps, globais):
         # Equivalente VHP Cents/lb FOB
         if terminal_usd_ton and frete_brl_ton:
             vhp_cents_lb_fob = (((vhp_cents_lb_pvu * SACAS_POR_TON) / FATOR_CWT_POR_TON) / cambio_brl_usd)
-            values['vhp_cents_lb_fob'] = vhp_cents_lb_fob
         else:
-            values['vhp_cents_lb_fob'] = None
+            vhp_cents_lb_fob = None
+        values['vhp_cents_lb_fob'] = vhp_cents_lb_fob
         
         # Prêmio Anidro/Hidratado Líquido
         preco_liquido_pvu_hidratado = deps.get('preco_liquido_pvu_hidratado')
@@ -370,24 +368,24 @@ def calc_hidratado_mi(inputs, deps, globais):
         # Equivalente VHP Cents/lb FOB
         if terminal_usd_ton and frete_brl_ton:
             vhp_cents_lb_fob = ((((((preco_pvu_mais_cbio) / FATOR_M3_HIDRATADO_INTERNO_PARA_SACA_VHP) * SACAS_POR_TON) + frete_brl_ton + (terminal_usd_ton * cambio_brl_usd)) / FATOR_CWT_POR_TON / cambio_brl_usd) / FATOR_DESCONTO_VHP_FOB)
-            values['vhp_cents_lb_fob'] = vhp_cents_lb_fob
         else:
-            values['vhp_cents_lb_fob'] = None
+            vhp_cents_lb_fob = None
+        values['vhp_cents_lb_fob'] = vhp_cents_lb_fob
         
         # Equivalente Cristal BRL/Saca PVU
         cristal_brl_saca_pvu = None
         if premio_fisico_pvu is not None:
             cristal_cents_lb_pvu = ((((((preco_pvu_mais_cbio) / FATOR_M3_HIDRATADO_INTERNO_PARA_SACA_VHP) * SACAS_POR_TON) + (premio_fisico_pvu * cambio_brl_usd)) / FATOR_CWT_POR_TON / cambio_brl_usd))
             cristal_brl_saca_pvu = (cristal_cents_lb_pvu * FATOR_CWT_POR_TON / SACAS_POR_TON) * cambio_brl_usd
-            values['cristal_brl_saca_pvu'] = cristal_brl_saca_pvu
+        values['cristal_brl_saca_pvu'] = cristal_brl_saca_pvu
         
         # Equivalente Cristal Cents/lb FOB
         if frete_brl_ton and fobizacao_container_brl_ton and premio_fisico_pvu is not None:
-            cristal_cents_lb_fob = (((((((preco_pvu_mais_cbio) / FATOR_M3_HIDRATADO_INTERNO_PARA_SACA_VHP) * SACAS_POR_TON) + frete_brl_ton + fobizacao_container_brl_ton) + (premio_fisico_pvu * cambio_brl_usd)) / FATOR_CWT_POR_TON / cambio_brl_usd)
-            values['cristal_cents_lb_fob'] = cristal_cents_lb_fob
+            cristal_cents_lb_fob = (((((((preco_pvu_mais_cbio) / FATOR_M3_HIDRATADO_INTERNO_PARA_SACA_VHP) * SACAS_POR_TON) + frete_brl_ton + fobizacao_container_brl_ton) + (premio_fisico_pvu * cambio_brl_usd)) / FATOR_CWT_POR_TON / cambio_brl_usd))
         else:
-            values['cristal_cents_lb_fob'] = None
-            
+            cristal_cents_lb_fob = None
+        values['cristal_cents_lb_fob'] = cristal_cents_lb_fob
+        
     except Exception as e:
         errors.append(f"Erro ao calcular hidratado mercado interno: {str(e)}")
     
@@ -460,10 +458,10 @@ def calc_acucar(inputs, globais):
             sugar_esalq_vhp_pvu_cents_lb = (((sugar_esalq_vhp_pvu_brl_saca * SACAS_POR_TON) / FATOR_CWT_POR_TON) / cambio_brl_usd)
             
             if frete_brl_ton:
-                sugar_esalq_vhp_fob_cents_lb = ((((((sugar_esalq_vhp_pvu_brl_saca) * SACAS_POR_TON) + frete_brl_ton + (terminal_usd_ton * cambio_brl_usd)) / FATOR_CWT_POR_TON / cambio_brl_usd))
-                values['vhp_cents_lb_fob_esalq'] = sugar_esalq_vhp_fob_cents_lb
+                sugar_esalq_vhp_fob_cents_lb = ((((((sugar_esalq_vhp_pvu_brl_saca) * SACAS_POR_TON) + frete_brl_ton + (terminal_usd_ton * cambio_brl_usd)) / FATOR_CWT_POR_TON) / cambio_brl_usd))
             else:
-                values['vhp_cents_lb_fob_esalq'] = None
+                sugar_esalq_vhp_fob_cents_lb = None
+            values['vhp_cents_lb_fob_esalq'] = sugar_esalq_vhp_fob_cents_lb
             
             sugar_esalq_cristal_pvu_cents_lb = (((sugar_esalq_cristal_pvu_brl_saca * SACAS_POR_TON) / FATOR_CWT_POR_TON) / cambio_brl_usd) - (15 / FATOR_CWT_POR_TON / cambio_brl_usd)
             
@@ -488,10 +486,10 @@ def calc_acucar(inputs, globais):
             sugar_interno_vhp_pvu_cents_lb = (((sugar_interno_vhp_pvu_brl_saca * SACAS_POR_TON) / FATOR_CWT_POR_TON) / cambio_brl_usd)
             
             if frete_brl_ton:
-                sugar_interno_vhp_fob_cents_lb = ((((((sugar_interno_vhp_pvu_brl_saca) * SACAS_POR_TON) + frete_brl_ton + (terminal_usd_ton * cambio_brl_usd)) / FATOR_CWT_POR_TON / cambio_brl_usd))
-                values['vhp_cents_lb_fob_mi'] = sugar_interno_vhp_fob_cents_lb
+                sugar_interno_vhp_fob_cents_lb = ((((((sugar_interno_vhp_pvu_brl_saca) * SACAS_POR_TON) + frete_brl_ton + (terminal_usd_ton * cambio_brl_usd)) / FATOR_CWT_POR_TON) / cambio_brl_usd))
             else:
-                values['vhp_cents_lb_fob_mi'] = None
+                sugar_interno_vhp_fob_cents_lb = None
+            values['vhp_cents_lb_fob_mi'] = sugar_interno_vhp_fob_cents_lb
             
             sugar_interno_cristal_pvu_cents_lb = ((sugar_interno_cristal_pvu_brl_saca * SACAS_POR_TON) / FATOR_CWT_POR_TON) / cambio_brl_usd
             
@@ -514,7 +512,7 @@ def calc_acucar(inputs, globais):
             sugar_export_cristal_pvu_brl_saca = (sugar_fob_brl_ton_export - fobizacao_container_brl_ton_o31 - frete_brl_ton_o32) / SACAS_POR_TON
             sugar_export_vhp_pvu_brl_saca = sugar_export_cristal_pvu_brl_saca - custo_cristal_vs_vhp
             sugar_export_vhp_pvu_cents_lb = (((sugar_export_vhp_pvu_brl_saca * SACAS_POR_TON) / FATOR_CWT_POR_TON) / cambio_brl_usd)
-            sugar_export_vhp_fob_cents_lb = ((((((sugar_export_vhp_pvu_brl_saca) * SACAS_POR_TON) + frete_brl_ton_o32 + (terminal_usd_ton * cambio_brl_usd)) / FATOR_CWT_POR_TON / cambio_brl_usd))
+            sugar_export_vhp_fob_cents_lb = ((((((sugar_export_vhp_pvu_brl_saca) * SACAS_POR_TON) + frete_brl_ton_o32 + (terminal_usd_ton * cambio_brl_usd)) / FATOR_CWT_POR_TON) / cambio_brl_usd))
             sugar_export_cristal_pvu_cents_lb = ((sugar_export_cristal_pvu_brl_saca * SACAS_POR_TON) / FATOR_CWT_POR_TON) / cambio_brl_usd
             sugar_export_cristal_fob_cents_lb = sugar_fob_usd_ton_export / 22.04622
             
@@ -533,7 +531,7 @@ def calc_acucar(inputs, globais):
             sugar_malha30_cristal_pvu_brl_saca = (sugar_fob_brl_ton_malha30 - fobizacao_container_brl_ton_o31 - frete_brl_ton_o32) / SACAS_POR_TON
             sugar_malha30_vhp_pvu_brl_saca = sugar_malha30_cristal_pvu_brl_saca - custo_cristal_vs_vhp
             sugar_malha30_vhp_pvu_cents_lb = (((sugar_malha30_vhp_pvu_brl_saca * SACAS_POR_TON) / FATOR_CWT_POR_TON) / cambio_brl_usd)
-            sugar_malha30_vhp_fob_cents_lb = ((((((sugar_malha30_vhp_pvu_brl_saca) * SACAS_POR_TON) + frete_brl_ton_o32 + (terminal_usd_ton * cambio_brl_usd)) / FATOR_CWT_POR_TON / cambio_brl_usd))
+            sugar_malha30_vhp_fob_cents_lb = ((((((sugar_malha30_vhp_pvu_brl_saca) * SACAS_POR_TON) + frete_brl_ton_o32 + (terminal_usd_ton * cambio_brl_usd)) / FATOR_CWT_POR_TON) / cambio_brl_usd))
             sugar_malha30_cristal_pvu_cents_lb = ((sugar_malha30_cristal_pvu_brl_saca * SACAS_POR_TON) / FATOR_CWT_POR_TON) / cambio_brl_usd
             sugar_malha30_cristal_fob_cents_lb = sugar_fob_usd_ton_malha30 / 22.04622
             
