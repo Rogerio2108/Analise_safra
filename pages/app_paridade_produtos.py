@@ -1,561 +1,922 @@
 """
-Streamlit App para Paridade Produtos
-Interface para editar inputs e visualizar outputs dos cálculos de paridade.
+Streamlit App para Cálculo de Paridade - Açúcar VHP
+Interface focada no cálculo detalhado do açúcar VHP.
 """
 
 import streamlit as st
-import pandas as pd
 
-# Importação - paridade_produtos está no mesmo diretório
-import sys
-from pathlib import Path
-
-# Adiciona o diretório pages ao path
-current_dir = Path(__file__).parent
-if str(current_dir) not in sys.path:
-    sys.path.insert(0, str(current_dir))
-
-# Importação absoluta (mais confiável no Streamlit Cloud)
-try:
-    from paridade_produtos import (
-        parse_ptbr_number,
-        fmt_br,
-        calc_anidro_exportacao,
-        calc_hidratado_exportacao,
-        calc_anidro_mi,
-        calc_hidratado_mi,
-        calc_acucar
-    )
-except ImportError as e:
-    st.error(f"⚠️ Erro ao importar funções de paridade_produtos.py")
-    st.error(f"Erro: {str(e)}")
-    st.error(f"Diretório atual: {current_dir}")
-    st.error(f"Arquivos no diretório: {[f.name for f in current_dir.glob('*.py')]}")
-    st.stop()
-except SyntaxError as e:
-    st.error(f"⚠️ Erro de sintaxe em paridade_produtos.py")
-    st.error(f"Erro: {str(e)}")
-    st.error(f"Linha: {e.lineno if hasattr(e, 'lineno') else 'N/A'}")
-    st.stop()
-
-st.set_page_config(page_title="Paridade Produtos", layout="wide")
+st.set_page_config(page_title="Paridade Açúcar VHP", layout="wide")
 
 # ============================================================================
-# FUNÇÕES AUXILIARES
+# CONSTANTES
 # ============================================================================
 
-def formatar_nome_bonito(nome_variavel):
+# Fator de conversão de c/lb para toneladas
+FATOR_CONVERSAO_CENTS_LB_PARA_TON = 22.0462
+
+# Sacas por tonelada
+SACAS_POR_TON = 20
+
+# ============================================================================
+# FUNÇÕES UTILITÁRIAS
+# ============================================================================
+
+def fmt_br(valor, casas=2):
     """
-    Converte nome de variável com underscore para formato legível.
-    Ex: 'preco_liquido_pvu' -> 'Preço Líquido PVU'
+    Formata número no padrão brasileiro: 1.234.567,89
+    
+    Args:
+        valor: Número a formatar
+        casas: Número de casas decimais
+    
+    Returns:
+        str: Número formatado no padrão brasileiro
     """
-    # Mapeamento de abreviações conhecidas
-    abreviacoes = {
-        'pvu': 'PVU',
-        'vhp': 'VHP',
-        'brl': 'BRL',
-        'usd': 'USD',
-        'cbio': 'CBIO',
-        'icms': 'ICMS',
-        'fob': 'FOB',
-        'rp': 'RP',
-        'mi': 'Mercado Interno',
-        'exp': 'Exportação',
-        'esalq': 'Esalq',
-        'malha30': 'Malha 30',
-        'cents_lb': 'cents/lb',
-        'brl_saca': 'BRL/saca',
-        'brl_saco': 'BRL/saco',
-        'brl_ton': 'BRL/ton',
-        'usd_ton': 'USD/ton',
-        'brl_por_ton': 'BRL/ton',
-        'usd_por_ton': 'USD/ton',
+    if valor is None:
+        return ""
+    return f"{valor:,.{casas}f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+# ============================================================================
+# FUNÇÃO DE CÁLCULO DO AÇÚCAR VHP
+# ============================================================================
+
+def calc_acucar_vhp_detalhado(inputs, globais):
+    """
+    Calcula o açúcar VHP com desenvolvimento detalhado do cálculo.
+    
+    Args:
+        inputs: dict com:
+            - acucar_ny_cents_lb: Preço do açúcar NY em c/lb (centavos por libra)
+            - premio_desconto: Prêmio/desconto em c/lb (pode ser decimal ou inteiro)
+            - premio_pol: Prêmio de pol (número que será tratado como percentual)
+            - custo_terminal_usd_ton: Custo de terminal em USD/ton
+            - frete_brl_ton: Frete em BRL/ton
+        globais: dict com parâmetros globais:
+            - cambio_brl_usd: Câmbio USD/BRL
+    
+    Returns:
+        dict: {
+            'values': {
+                'sugar_ny_mais_pol_cents_lb': ...,
+                'equivalente_vhp_reais_saca_pvu': ...,
+                'desenvolvimento': {...}  # Detalhamento do cálculo
+            },
+            'errors': [...]
+        }
+    """
+    errors = []
+    values = {}
+    desenvolvimento = {}
+    
+    try:
+        # Entradas
+        acucar_ny_cents_lb = inputs.get('acucar_ny_cents_lb', 0)
+        premio_desconto = inputs.get('premio_desconto', 0)
+        premio_pol = inputs.get('premio_pol', 0)  # Será tratado como percentual
+        custo_terminal_usd_ton = inputs.get('custo_terminal_usd_ton', 0)
+        frete_brl_ton = inputs.get('frete_brl_ton', 0)
+        
+        cambio_brl_usd = globais.get('cambio_brl_usd', 1)
+        
+        # Validações
+        if cambio_brl_usd <= 0:
+            errors.append("Câmbio deve ser maior que zero")
+            return {'values': values, 'errors': errors}
+        
+        # ====================================================================
+        # PASSO 1: Calcular Sugar NY + Pol
+        # Fórmula: (Açúcar NY + prêmio/desconto) * (1 + prêmio pol%)
+        # ====================================================================
+        
+        # Converte prêmio de pol para percentual (se > 1, assume que está em %, senão assume decimal)
+        premio_pol_percentual = premio_pol / 100 if premio_pol > 1 else premio_pol
+        
+        # Calcula Sugar NY + Pol
+        sugar_ny_mais_pol_cents_lb = (acucar_ny_cents_lb + premio_desconto) * (1 + premio_pol_percentual)
+        
+        # Armazena desenvolvimento do Passo 1
+        desenvolvimento['passo1'] = {
+            'descricao': 'Cálculo Sugar NY + Pol',
+            'formula': '(Açúcar NY + Prêmio/Desconto) × (1 + Prêmio Pol%)',
+            'valores': {
+                'acucar_ny_cents_lb': acucar_ny_cents_lb,
+                'premio_desconto_cents_lb': premio_desconto,
+                'premio_pol_percentual': premio_pol_percentual,
+                'soma_ny_premio': acucar_ny_cents_lb + premio_desconto,
+                'fator_pol': 1 + premio_pol_percentual,
+                'resultado_cents_lb': sugar_ny_mais_pol_cents_lb
+            }
+        }
+        
+        # ====================================================================
+        # PASSO 2: Calcular Equivalente VHP Reais/saca PVU
+        # Fórmula: (((Sugar NY+pol * 22.0462) - custo de terminal - (frete Reais por ton/câmbio))/20) * Câmbio
+        # ====================================================================
+        
+        # 1. Conversão de c/lb para USD/ton
+        sugar_ny_mais_pol_usd_ton = sugar_ny_mais_pol_cents_lb * FATOR_CONVERSAO_CENTS_LB_PARA_TON
+        
+        # 2. Conversão do frete de BRL/ton para USD/ton
+        frete_usd_ton = frete_brl_ton / cambio_brl_usd
+        
+        # 3. Cálculo do valor líquido em USD/ton
+        valor_usd_ton = sugar_ny_mais_pol_usd_ton - custo_terminal_usd_ton - frete_usd_ton
+        
+        # 4. Divisão por 20 (sacas por tonelada) para obter USD/saca
+        valor_usd_saca = valor_usd_ton / SACAS_POR_TON
+        
+        # 5. Conversão para BRL/saca multiplicando pelo câmbio
+        equivalente_vhp_reais_saca_pvu = valor_usd_saca * cambio_brl_usd
+        
+        # Armazena desenvolvimento do Passo 2
+        desenvolvimento['passo2'] = {
+            'descricao': 'Cálculo Equivalente VHP Reais/saca PVU',
+            'formula': '(((Sugar NY+pol × 22.0462) - Custo Terminal - (Frete BRL/ton ÷ Câmbio)) ÷ 20) × Câmbio',
+            'valores': {
+                'sugar_ny_mais_pol_cents_lb': sugar_ny_mais_pol_cents_lb,
+                'fator_conversao': FATOR_CONVERSAO_CENTS_LB_PARA_TON,
+                'sugar_ny_mais_pol_usd_ton': sugar_ny_mais_pol_usd_ton,
+                'custo_terminal_usd_ton': custo_terminal_usd_ton,
+                'frete_brl_ton': frete_brl_ton,
+                'cambio_brl_usd': cambio_brl_usd,
+                'frete_usd_ton': frete_usd_ton,
+                'valor_usd_ton': valor_usd_ton,
+                'sacas_por_ton': SACAS_POR_TON,
+                'valor_usd_saca': valor_usd_saca,
+                'resultado_brl_saca': equivalente_vhp_reais_saca_pvu
+            }
+        }
+        
+        # ====================================================================
+        # PASSO 3: Calcular Equivalente VHP c/lb PVU
+        # Fórmula: ((Equivalente VHP Reais/saca PVU * 20) / 22.0462) / câmbio
+        # ====================================================================
+        
+        equivalente_vhp_cents_lb_pvu = ((equivalente_vhp_reais_saca_pvu * SACAS_POR_TON) / FATOR_CONVERSAO_CENTS_LB_PARA_TON) / cambio_brl_usd
+        
+        desenvolvimento['passo3'] = {
+            'descricao': 'Cálculo Equivalente VHP c/lb PVU',
+            'formula': '((Equivalente VHP Reais/saca PVU × 20) ÷ 22.0462) ÷ Câmbio',
+            'valores': {
+                'equivalente_vhp_reais_saca_pvu': equivalente_vhp_reais_saca_pvu,
+                'sacas_por_ton': SACAS_POR_TON,
+                'fator_conversao': FATOR_CONVERSAO_CENTS_LB_PARA_TON,
+                'cambio_brl_usd': cambio_brl_usd,
+                'resultado_cents_lb_pvu': equivalente_vhp_cents_lb_pvu
+            }
+        }
+        
+        # ====================================================================
+        # PASSO 4: Equivalente VHP c/lb FOB
+        # Fórmula: igual ao Sugar NY + Pol
+        # ====================================================================
+        
+        equivalente_vhp_cents_lb_fob = sugar_ny_mais_pol_cents_lb
+        
+        desenvolvimento['passo4'] = {
+            'descricao': 'Equivalente VHP c/lb FOB',
+            'formula': 'Igual ao Sugar NY + Pol',
+            'valores': {
+                'sugar_ny_mais_pol_cents_lb': sugar_ny_mais_pol_cents_lb,
+                'resultado_cents_lb_fob': equivalente_vhp_cents_lb_fob
+            }
+        }
+        
+        # Armazena resultados
+        values['sugar_ny_mais_pol_cents_lb'] = sugar_ny_mais_pol_cents_lb
+        values['equivalente_vhp_reais_saca_pvu'] = equivalente_vhp_reais_saca_pvu
+        values['equivalente_vhp_cents_lb_pvu'] = equivalente_vhp_cents_lb_pvu
+        values['equivalente_vhp_cents_lb_fob'] = equivalente_vhp_cents_lb_fob
+        values['desenvolvimento'] = desenvolvimento
+        
+    except Exception as e:
+        errors.append(f"Erro ao calcular açúcar VHP: {str(e)}")
+    
+    return {
+        'values': values,
+        'errors': errors
     }
+
+def calc_acucar_cristal_esalq(inputs, globais):
+    """
+    Calcula o açúcar cristal ESALQ com desenvolvimento detalhado do cálculo.
     
-    palavras = nome_variavel.split('_')
-    resultado = []
+    Args:
+        inputs: dict com:
+            - preco_esalq_brl_saca: Preço ESALQ em R$/saca
+            - imposto: Imposto (número que será tratado como percentual)
+            - frete_santos_usina_brl_ton: Frete Santos-Usina em R$/Ton
+            - custo_fobizacao_container_brl_ton: Custo de Fobização do container em R$/Ton
+            - custo_vhp_para_cristal: Custo para transformar VHP em Cristal
+        globais: dict com parâmetros globais:
+            - cambio_brl_usd: Câmbio USD/BRL
+            - custo_terminal_usd_ton: Custo de terminal em USD/ton (do açúcar VHP)
     
-    for palavra in palavras:
-        palavra_lower = palavra.lower()
-        if palavra_lower in abreviacoes:
-            resultado.append(abreviacoes[palavra_lower])
-        else:
-            # Capitaliza primeira letra
-            resultado.append(palavra.capitalize())
+    Returns:
+        dict: {
+            'values': {
+                'equivalente_cristal_reais_saca_pvu': ...,
+                'equivalente_vhp_reais_saca_pvu': ...,
+                'equivalente_vhp_cents_lb_pvu': ...,
+                'equivalente_vhp_cents_lb_fob': ...,
+                'equivalente_cristal_cents_lb_pvu': ...,
+                'equivalente_cristal_cents_lb_fob': ...,
+            },
+            'errors': [...]
+        }
+    """
+    errors = []
+    values = {}
     
-    # Junta as palavras
-    texto = ' '.join(resultado)
+    try:
+        # Entradas
+        preco_esalq_brl_saca = inputs.get('preco_esalq_brl_saca', 0)
+        imposto = inputs.get('imposto', 0)  # Será tratado como percentual
+        frete_santos_usina_brl_ton = inputs.get('frete_santos_usina_brl_ton', 0)
+        custo_fobizacao_container_brl_ton = inputs.get('custo_fobizacao_container_brl_ton', 0)
+        custo_vhp_para_cristal = inputs.get('custo_vhp_para_cristal', 0)
+        
+        cambio_brl_usd = globais.get('cambio_brl_usd', 1)
+        custo_terminal_usd_ton = globais.get('custo_terminal_usd_ton', 0)
+        
+        # Validações
+        if cambio_brl_usd <= 0:
+            errors.append("Câmbio deve ser maior que zero")
+            return {'values': values, 'errors': errors}
+        
+        # Converte imposto para percentual (se > 1, assume que está em %, senão assume decimal)
+        imposto_percentual = imposto / 100 if imposto > 1 else imposto
+        
+        # 1. Equivalente Cristal R$/Saca PVU
+        equivalente_cristal_reais_saca_pvu = preco_esalq_brl_saca * (1 - imposto_percentual)
+        
+        # 2. Equivalente VHP R$/Saca PVU
+        equivalente_vhp_reais_saca_pvu = equivalente_cristal_reais_saca_pvu - custo_vhp_para_cristal
+        
+        # 3. Equivalente VHP Cents/lb PVU
+        equivalente_vhp_cents_lb_pvu = (((equivalente_vhp_reais_saca_pvu * SACAS_POR_TON) / FATOR_CONVERSAO_CENTS_LB_PARA_TON) / cambio_brl_usd)
+        
+        # 4. Equivalente VHP Cents/lb FOB
+        custo_terminal_brl_ton = custo_terminal_usd_ton * cambio_brl_usd
+        equivalente_vhp_cents_lb_fob = (((((equivalente_vhp_reais_saca_pvu * SACAS_POR_TON) + frete_santos_usina_brl_ton + custo_terminal_brl_ton) / FATOR_CONVERSAO_CENTS_LB_PARA_TON) / cambio_brl_usd))
+        
+        # 5. Equivalente Cristal c/lb PVU
+        equivalente_cristal_cents_lb_pvu = (((equivalente_cristal_reais_saca_pvu * SACAS_POR_TON) / FATOR_CONVERSAO_CENTS_LB_PARA_TON) / cambio_brl_usd) - (15 / FATOR_CONVERSAO_CENTS_LB_PARA_TON / cambio_brl_usd)
+        
+        # 6. Equivalente Cristal Cents/lb FOB
+        # Usa 22.04622 conforme especificado na fórmula
+        equivalente_cristal_cents_lb_fob = (((equivalente_cristal_reais_saca_pvu * SACAS_POR_TON) + frete_santos_usina_brl_ton + custo_fobizacao_container_brl_ton) / 22.04622) / cambio_brl_usd
+        
+        # Armazena resultados
+        values['equivalente_cristal_reais_saca_pvu'] = equivalente_cristal_reais_saca_pvu
+        values['equivalente_vhp_reais_saca_pvu'] = equivalente_vhp_reais_saca_pvu
+        values['equivalente_vhp_cents_lb_pvu'] = equivalente_vhp_cents_lb_pvu
+        values['equivalente_vhp_cents_lb_fob'] = equivalente_vhp_cents_lb_fob
+        values['equivalente_cristal_cents_lb_pvu'] = equivalente_cristal_cents_lb_pvu
+        values['equivalente_cristal_cents_lb_fob'] = equivalente_cristal_cents_lb_fob
+        
+    except Exception as e:
+        errors.append(f"Erro ao calcular açúcar cristal ESALQ: {str(e)}")
     
-    # Ajustes finais
-    texto = texto.replace('Preco', 'Preço')
-    texto = texto.replace('Custo', 'Custo')
-    texto = texto.replace('Premio', 'Prêmio')
-    texto = texto.replace('Desconto', 'Desconto')
-    texto = texto.replace('Contribuicao', 'Contribuição')
-    texto = texto.replace('Impostos', 'Impostos')
-    texto = texto.replace('Fobizacao', 'Fobização')
-    texto = texto.replace('Supervisao', 'Supervisão')
-    texto = texto.replace('Demurrage', 'Demurrage')
-    texto = texto.replace('Hidratado', 'Hidratado')
-    texto = texto.replace('Anidro', 'Anidro')
-    texto = texto.replace('Cristal', 'Cristal')
-    texto = texto.replace('Equivalente', 'Equivalente')
-    texto = texto.replace('Liquido', 'Líquido')
-    texto = texto.replace('Mais', 'Mais')
-    texto = texto.replace('Fisico', 'Físico')
-    texto = texto.replace('Contrato', 'Contrato')
+    return {
+        'values': values,
+        'errors': errors
+    }
+
+def calc_paridade_comercializacao_mi_ny(inputs, globais):
+    """
+    Calcula a paridade de comercialização mercado interno e externo NY.
     
-    return texto
+    Args:
+        inputs: dict com:
+            - acucar_ny_cents_lb: Valor do açúcar NY em c/lb (do campo do açúcar VHP)
+            - premio_fisico_mi: Prêmio/desconto de físico
+        globais: dict com parâmetros globais:
+            - cambio_brl_usd: Câmbio USD/BRL
+            - custo_terminal_usd_ton: Custo de terminal em USD/ton
+            - frete_santos_usina_brl_ton: Frete Santos-Usina em R$/Ton
+            - custo_fobizacao_container_brl_ton: Custo de fobização em R$/Ton
+            - custo_vhp_para_cristal: Custo para transformar VHP em Cristal
+    
+    Returns:
+        dict: {
+            'values': {
+                'equivalente_cristal_reais_saca_pvu': ...,
+                'equivalente_vhp_reais_saca_pvu': ...,
+                'equivalente_vhp_cents_lb_pvu': ...,
+                'equivalente_vhp_cents_lb_fob': ...,
+                'equivalente_cristal_cents_lb_pvu': ...,
+                'equivalente_cristal_cents_lb_fob': ...,
+            },
+            'errors': [...]
+        }
+    """
+    errors = []
+    values = {}
+    
+    try:
+        # Entradas
+        acucar_ny_cents_lb = inputs.get('acucar_ny_cents_lb', 0)
+        premio_fisico_mi = inputs.get('premio_fisico_mi', 0)
+        
+        cambio_brl_usd = globais.get('cambio_brl_usd', 1)
+        custo_terminal_usd_ton = globais.get('custo_terminal_usd_ton', 0)
+        frete_santos_usina_brl_ton = globais.get('frete_santos_usina_brl_ton', 0)
+        custo_fobizacao_container_brl_ton = globais.get('custo_fobizacao_container_brl_ton', 0)
+        custo_vhp_para_cristal = globais.get('custo_vhp_para_cristal', 0)
+        
+        # Validações
+        if cambio_brl_usd <= 0:
+            errors.append("Câmbio deve ser maior que zero")
+            return {'values': values, 'errors': errors}
+        
+        # 1. Equivalente Cristal R$/Saca PVU
+        # Fórmula: (((Valor do açúcar em c/lb * 22,04622) + Prêmio de físico) * Câmbio) / 20
+        acucar_ny_usd_ton = acucar_ny_cents_lb * 22.04622
+        acucar_com_premio_usd_ton = acucar_ny_usd_ton + premio_fisico_mi
+        acucar_com_premio_brl_ton = acucar_com_premio_usd_ton * cambio_brl_usd
+        equivalente_cristal_reais_saca_pvu = acucar_com_premio_brl_ton / SACAS_POR_TON
+        
+        # 2. Equivalente VHP R$/saca PVU
+        equivalente_vhp_reais_saca_pvu = equivalente_cristal_reais_saca_pvu - custo_vhp_para_cristal
+        
+        # 3. Equivalente VHP Cents/lb PVU
+        equivalente_vhp_cents_lb_pvu = (((equivalente_vhp_reais_saca_pvu * SACAS_POR_TON) / FATOR_CONVERSAO_CENTS_LB_PARA_TON) / cambio_brl_usd)
+        
+        # 4. Equivalente VHP Cents/lb FOB
+        custo_terminal_brl_ton = custo_terminal_usd_ton * cambio_brl_usd
+        equivalente_vhp_cents_lb_fob = (((((equivalente_vhp_reais_saca_pvu * SACAS_POR_TON) + frete_santos_usina_brl_ton + custo_terminal_brl_ton) / FATOR_CONVERSAO_CENTS_LB_PARA_TON) / cambio_brl_usd))
+        
+        # 5. Equivalente Cristal c/lb PVU
+        equivalente_cristal_cents_lb_pvu = ((equivalente_cristal_reais_saca_pvu * SACAS_POR_TON) / FATOR_CONVERSAO_CENTS_LB_PARA_TON) / cambio_brl_usd
+        
+        # 6. Equivalente Cristal Cents/lb FOB
+        # Fórmula: ((Equivalente Cristal R$/Saca PVU * 20 + Custo de fobização + Frete Santos-Usina R$/ton) / 22,0462) / Câmbio
+        equivalente_cristal_cents_lb_fob = ((equivalente_cristal_reais_saca_pvu * SACAS_POR_TON + custo_fobizacao_container_brl_ton + frete_santos_usina_brl_ton) / FATOR_CONVERSAO_CENTS_LB_PARA_TON) / cambio_brl_usd
+        
+        # Armazena resultados
+        values['equivalente_cristal_reais_saca_pvu'] = equivalente_cristal_reais_saca_pvu
+        values['equivalente_vhp_reais_saca_pvu'] = equivalente_vhp_reais_saca_pvu
+        values['equivalente_vhp_cents_lb_pvu'] = equivalente_vhp_cents_lb_pvu
+        values['equivalente_vhp_cents_lb_fob'] = equivalente_vhp_cents_lb_fob
+        values['equivalente_cristal_cents_lb_pvu'] = equivalente_cristal_cents_lb_pvu
+        values['equivalente_cristal_cents_lb_fob'] = equivalente_cristal_cents_lb_fob
+        
+    except Exception as e:
+        errors.append(f"Erro ao calcular custo de comercialização açúcar cristal MI: {str(e)}")
+    
+    return {
+        'values': values,
+        'errors': errors
+    }
+
+def calc_acucar_cristal_exportacao(inputs, globais):
+    """
+    Calcula o açúcar cristal para exportação.
+    
+    Args:
+        inputs: dict com:
+            - acucar_ny_cents_lb: Valor do açúcar NY em c/lb (do campo do açúcar VHP)
+            - premio_fisico_exportacao: Prêmio/desconto de físico de exportação
+        globais: dict com parâmetros globais:
+            - cambio_brl_usd: Câmbio USD/BRL
+            - custo_terminal_usd_ton: Custo de terminal em USD/ton
+            - frete_brl_ton: Frete em R$/Ton
+            - custo_fobizacao_container_brl_ton: Custo de fobização em R$/Ton
+            - custo_vhp_para_cristal: Custo para transformar VHP em Cristal
+    
+    Returns:
+        dict: {
+            'values': {
+                'equivalente_cristal_reais_saca_pvu': ...,
+                'equivalente_vhp_reais_saca_pvu': ...,
+                'equivalente_vhp_cents_lb_pvu': ...,
+                'equivalente_vhp_cents_lb_fob': ...,
+                'equivalente_cristal_cents_lb_pvu': ...,
+                'equivalente_cristal_cents_lb_fob': ...,
+            },
+            'errors': [...]
+        }
+    """
+    errors = []
+    values = {}
+    
+    try:
+        # Entradas
+        acucar_ny_cents_lb = inputs.get('acucar_ny_cents_lb', 0)
+        premio_fisico_exportacao = inputs.get('premio_fisico_exportacao', 0)
+        
+        cambio_brl_usd = globais.get('cambio_brl_usd', 1)
+        custo_terminal_usd_ton = globais.get('custo_terminal_usd_ton', 0)
+        frete_brl_ton = globais.get('frete_brl_ton', 0)
+        custo_fobizacao_container_brl_ton = globais.get('custo_fobizacao_container_brl_ton', 0)
+        custo_vhp_para_cristal = globais.get('custo_vhp_para_cristal', 0)
+        
+        # Validações
+        if cambio_brl_usd <= 0:
+            errors.append("Câmbio deve ser maior que zero")
+            return {'values': values, 'errors': errors}
+        
+        # 1. Equivalente Cristal R$/Saca PVU
+        # Fórmula: (((Valor em c/lb * 22,04622) + Prêmio/Desconto de Físico de exportação) * Câmbio - Custo de fobização - custo de frete R$/Ton) / 20
+        acucar_ny_usd_ton = acucar_ny_cents_lb * 22.04622
+        acucar_com_premio_usd_ton = acucar_ny_usd_ton + premio_fisico_exportacao
+        acucar_com_premio_brl_ton = acucar_com_premio_usd_ton * cambio_brl_usd
+        equivalente_cristal_reais_saca_pvu = (acucar_com_premio_brl_ton - custo_fobizacao_container_brl_ton - frete_brl_ton) / SACAS_POR_TON
+        
+        # 2. Equivalente VHP R$/saca PVU
+        equivalente_vhp_reais_saca_pvu = equivalente_cristal_reais_saca_pvu - custo_vhp_para_cristal
+        
+        # 3. Equivalente VHP Cents/lb PVU
+        equivalente_vhp_cents_lb_pvu = (((equivalente_vhp_reais_saca_pvu * SACAS_POR_TON) / FATOR_CONVERSAO_CENTS_LB_PARA_TON) / cambio_brl_usd)
+        
+        # 4. Equivalente VHP Cents/lb FOB
+        custo_terminal_brl_ton = custo_terminal_usd_ton * cambio_brl_usd
+        equivalente_vhp_cents_lb_fob = (((((equivalente_vhp_reais_saca_pvu * SACAS_POR_TON) + frete_brl_ton + custo_terminal_brl_ton) / FATOR_CONVERSAO_CENTS_LB_PARA_TON) / cambio_brl_usd))
+        
+        # 5. Equivalente Cristal c/lb PVU
+        equivalente_cristal_cents_lb_pvu = ((equivalente_cristal_reais_saca_pvu * SACAS_POR_TON) / FATOR_CONVERSAO_CENTS_LB_PARA_TON) / cambio_brl_usd
+        
+        # 6. Equivalente Cristal Cents/lb FOB
+        # Fórmula: (((Valor em c/lb * 22,04622) + Prêmio/Desconto de Físico de exportação) / 22,0462
+        equivalente_cristal_cents_lb_fob = ((acucar_ny_cents_lb * 22.04622) + premio_fisico_exportacao) / 22.0462
+        
+        # Armazena resultados
+        values['equivalente_cristal_reais_saca_pvu'] = equivalente_cristal_reais_saca_pvu
+        values['equivalente_vhp_reais_saca_pvu'] = equivalente_vhp_reais_saca_pvu
+        values['equivalente_vhp_cents_lb_pvu'] = equivalente_vhp_cents_lb_pvu
+        values['equivalente_vhp_cents_lb_fob'] = equivalente_vhp_cents_lb_fob
+        values['equivalente_cristal_cents_lb_pvu'] = equivalente_cristal_cents_lb_pvu
+        values['equivalente_cristal_cents_lb_fob'] = equivalente_cristal_cents_lb_fob
+        
+    except Exception as e:
+        errors.append(f"Erro ao calcular açúcar cristal exportação: {str(e)}")
+    
+    return {
+        'values': values,
+        'errors': errors
+    }
 
 # ============================================================================
 # SIDEBAR - INPUTS
 # ============================================================================
 
 with st.sidebar:
-    st.header("⚙️ Parâmetros Globais")
+    # Cria duas colunas na sidebar
+    col_sidebar_1, col_sidebar_2 = st.columns(2)
     
+    with col_sidebar_1:
+        st.header("🍬 Açúcar")
+    st.caption("Parâmetros para cálculo do açúcar VHP")
+    
+    st.divider()
+    
+    # Câmbio (usado em todos os cálculos)
+    st.subheader("💱 Câmbio")
     cambio_brl_usd = st.number_input(
         "Câmbio USD/BRL",
         value=5.35,
         step=0.01,
-        format="%.4f"
+        format="%.4f",
+        help="Taxa de câmbio real equiparado ao dólar"
     )
-    
-    st.subheader("Custos Adicionais (para cálculos de equivalentes)")
-    custo_c5 = st.number_input(
-        "Custo Adicional 1 (para cálculo VHP FOB)",
-        value=0.0,
-        step=0.1,
-        format="%.2f",
-        help="Usado no cálculo de equivalente VHP Cents/lb FOB"
-    )
-    custo_c6 = st.number_input(
-        "Custo Adicional 2 (para cálculo Cristal PVU)",
-        value=0.0,
-        step=0.1,
-        format="%.2f",
-        help="Usado no cálculo de equivalente Cristal BRL/saca PVU"
-    )
-    custo_c7 = st.number_input(
-        "Custo Adicional 3 (para cálculo Cristal PVU Cents/lb)",
-        value=0.0,
-        step=0.1,
-        format="%.2f",
-        help="Usado no cálculo de equivalente Cristal Cents/lb PVU"
-    )
-    custo_c8 = st.number_input(
-        "Custo Adicional 4 - Demurrage (para cálculo Cristal FOB)",
-        value=0.0,
-        step=0.1,
-        format="%.2f",
-        help="Usado no cálculo de equivalente Cristal Cents/lb FOB. Se vazio, dará erro de divisão por zero"
-    )
-    
-    st.subheader("Parâmetros Açúcar")
-    terminal_usd_por_ton = st.number_input("Terminal USD/ton", value=12.5, step=0.1, format="%.2f")
-    frete_brl_por_ton = st.number_input("Frete BRL/ton", value=202.0, step=1.0, format="%.2f")
-    fobizacao_container_brl_ton = st.number_input("Fobização Container BRL/ton", value=198.0, step=1.0, format="%.2f")
-    frete_brl_por_ton_l32 = st.number_input("Frete BRL/ton (L32)", value=202.0, step=1.0, format="%.2f")
-    custo_cristal_vs_vhp = st.number_input("Custo Cristal vs VHP", value=0.0, step=0.1, format="%.2f")
     
     st.divider()
-    st.header("📥 Inputs por Bloco")
     
-    st.subheader("Anidro Exportação")
-    preco_anidro_fob_usd = st.number_input("Preço Anidro FOB USD", value=750.0, step=1.0, format="%.2f")
-    frete_porto_usina_brl_bloco1 = st.number_input("Frete Porto-Usina BRL", value=200.0, step=1.0, format="%.2f")
-    terminal_brl_bloco1 = st.number_input("Terminal BRL", value=100.0, step=1.0, format="%.2f")
-    supervisao_documentos_brl_bloco1 = st.number_input("Supervisão/Documentos BRL", value=4.0, step=0.1, format="%.2f")
-    custos_adicionais_demurrage_bloco1 = st.number_input("Custos Adicionais Demurrage", value=0.0, step=0.1, format="%.2f")
+    # Seção específica para Açúcar VHP
+    st.subheader("📝 Parâmetros do Açúcar VHP")
+    st.caption("Campos específicos para cálculo do açúcar VHP")
     
-    st.subheader("Hidratado Exportação")
-    preco_hidratado_fob_usd = st.number_input("Preço Hidratado FOB USD", value=550.0, step=1.0, format="%.2f")
+    st.markdown("**Preço Base**")
+    acucar_ny_cents_lb = st.number_input(
+            "Açúcar NY (c/lb)",
+            value=15.8,
+            step=0.1,
+            format="%.2f",
+            help="Valor do açúcar na bolsa em dólar por libra peso (centavos por libra)",
+            key="acucar_ny_sidebar"
+        )
+        
+    st.markdown("**Prêmios e Descontos**")
+    premio_desconto_vhp = st.number_input(
+        "Prêmio/Desconto (c/lb)",
+        value=-0.1,
+        step=0.1,
+        format="%.2f",
+        help="Prêmio ou desconto em centavos por libra (pode ser decimal ou inteiro)",
+        key="premio_desconto_vhp_sidebar"
+    )
     
-    st.subheader("Anidro Mercado Interno")
-    preco_anidro_com_impostos = st.number_input("Preço Anidro com Impostos", value=3350.0, step=1.0, format="%.2f")
-    pis_cofins = st.number_input("PIS/COFINS", value=192.2, step=0.1, format="%.2f")
-    contribuicao_agroindustria = st.number_input("Contribuição Agroindústria", value=0.0, step=0.01, format="%.4f")
-    valor_cbio_bruto = st.number_input("Valor CBIO Bruto", value=40.0, step=1.0, format="%.2f")
+    premio_pol_vhp = st.number_input(
+        "Prêmio de Pol",
+        value=4.2,
+        step=0.1,
+        format="%.2f",
+        help="Prêmio de pol (será considerado como percentual. Ex: 4.2 = 4.2%)",
+        key="premio_pol_vhp_sidebar"
+    )
     
-    st.subheader("Hidratado Mercado Interno")
-    preco_hidratado_rp_com_impostos = st.number_input("Preço Hidratado RP com Impostos", value=3400.0, step=1.0, format="%.2f")
-    pis_cofins_hidratado = st.number_input("PIS/COFINS (Hidratado)", value=192.2, step=0.1, format="%.2f")
-    icms = st.number_input("ICMS", value=0.12, step=0.01, format="%.4f")
-    contribuicao_agroindustria_hidratado = st.number_input("Contribuição Agroindústria (Hidratado)", value=0.0, step=0.01, format="%.4f")
-    valor_cbio_bruto_hidratado = st.number_input("Valor CBIO Bruto (Hidratado)", value=40.0, step=1.0, format="%.2f")
-    premio_fisico_pvu = st.number_input("Prêmio Físico PVU", value=23.0, step=1.0, format="%.2f")
+    st.markdown("**Custos**")
+    custo_terminal_vhp_usd_ton = st.number_input(
+        "Custo de Terminal (USD/ton)",
+        value=12.5,
+        step=0.1,
+        format="%.2f",
+        help="Custo de terminal em dólar por tonelada",
+        key="custo_terminal_vhp_sidebar"
+    )
     
-    st.subheader("Açúcar")
-    sugar_ny_fob_cents_lb = st.number_input("Sugar NY FOB (cents/lb)", value=15.8, step=0.1, format="%.2f")
-    premio_desconto_cents_lb = st.number_input("Prêmio/Desconto (cents/lb)", value=-0.1, step=0.1, format="%.2f")
-    premio_pol = st.number_input("Prêmio POL", value=0.042, step=0.001, format="%.4f")
-    esalq_brl_saca = st.number_input("Esalq BRL/saca", value=115.67, step=0.1, format="%.2f")
-    impostos_esalq = st.number_input("Impostos Esalq", value=0.0985, step=0.001, format="%.4f")
-    premio_fisico_fob = st.number_input("Prêmio Físico FOB", value=90.0, step=1.0, format="%.2f")
-    premio_fisico_malha30 = st.number_input("Prêmio Físico Malha 30", value=104.0, step=1.0, format="%.2f")
-    fobizacao_container_brl_ton_o31 = st.number_input("Fobização Container BRL/ton (O31)", value=198.0, step=1.0, format="%.2f")
-    frete_brl_ton_o32 = st.number_input("Frete BRL/ton (O32)", value=202.0, step=1.0, format="%.2f")
-
-# ============================================================================
-# PARÂMETROS GLOBAIS
-# ============================================================================
-
-globais = {
-    'cambio_brl_usd': cambio_brl_usd,
-    'custo_c5': custo_c5,
-    'custo_c6': custo_c6,
-    'custo_c7': custo_c7,
-    'custo_c8': custo_c8,
-    'terminal_usd_por_ton': terminal_usd_por_ton,
-    'frete_brl_por_ton': frete_brl_por_ton,
-    'fobizacao_container_brl_ton': fobizacao_container_brl_ton,
-    'frete_brl_por_ton_l32': frete_brl_por_ton_l32,
-    'custo_cristal_vs_vhp': custo_cristal_vs_vhp,
-}
+    frete_vhp_brl_ton = st.number_input(
+        "Frete (BRL/ton)",
+        value=202.0,
+        step=1.0,
+        format="%.2f",
+        help="Frete em reais por tonelada",
+        key="frete_vhp_sidebar"
+    )
+    
+    st.divider()
+    
+    # Seção específica para Açúcar Cristal ESALQ
+    st.subheader("📝 Parâmetros do Açúcar Cristal ESALQ")
+    st.caption("Campos específicos para cálculo do açúcar cristal ESALQ")
+    
+    st.markdown("**Preço Base**")
+    preco_esalq_brl_saca = st.number_input(
+        "Preço ESALQ (R$/saca)",
+        value=115.67,
+        step=0.1,
+        format="%.2f",
+        help="Preço ESALQ em reais por saca",
+        key="preco_esalq_sidebar"
+    )
+    
+    st.markdown("**Impostos**")
+    imposto_esalq = st.number_input(
+        "Imposto",
+        value=9.85,
+        step=0.1,
+        format="%.2f",
+        help="Imposto (será considerado como percentual. Ex: 9.85 = 9.85%)",
+        key="imposto_esalq_sidebar"
+    )
+    
+    st.markdown("**Custos**")
+    frete_santos_usina_brl_ton = st.number_input(
+        "Frete Santos-Usina (R$/Ton)",
+        value=202.0,
+        step=1.0,
+        format="%.2f",
+        help="Frete Santos-Usina em reais por tonelada",
+        key="frete_santos_usina_sidebar"
+    )
+    
+    custo_fobizacao_container_brl_ton = st.number_input(
+        "Custo de Fobização Container (R$/Ton)",
+        value=198.0,
+        step=1.0,
+        format="%.2f",
+        help="Custo de fobização do container em reais por tonelada",
+        key="custo_fobizacao_sidebar"
+    )
+    
+    custo_vhp_para_cristal = st.number_input(
+        "Custo VHP para Cristal",
+        value=9.25,
+        step=0.1,
+        format="%.2f",
+        help="Custo para transformar VHP em Cristal",
+        key="custo_vhp_cristal_sidebar"
+    )
+    
+    st.divider()
+    
+    # Seção específica para Custo de Comercialização Açúcar Cristal MI
+    st.subheader("📝 Custo de Comercialização Açúcar Cristal MI")
+    st.caption("Cálculo de custo de comercialização açúcar cristal mercado interno")
+    
+    st.markdown("**Prêmios**")
+    premio_fisico_mi = st.number_input(
+        "Prêmio/Desconto de Físico",
+        value=0.0,
+        step=0.1,
+        format="%.2f",
+        help="Prêmio/desconto de físico - média de prêmio do mercado interno (pode variar)",
+        key="premio_fisico_mi_sidebar"
+    )
+    
+    st.divider()
+    
+    # Seção específica para Açúcar Cristal Exportação
+    st.subheader("📝 Açúcar Cristal Exportação")
+    st.caption("Cálculo de açúcar cristal para exportação")
+    
+    st.markdown("**Prêmios**")
+    premio_fisico_exportacao = st.number_input(
+        "Prêmio/Desconto de Físico Exportação",
+        value=0.0,
+        step=0.1,
+        format="%.2f",
+        help="Prêmio/desconto de físico para exportação",
+        key="premio_fisico_exportacao_sidebar"
+    )
+    
+    with col_sidebar_2:
+        st.header("⛽ Etanol")
+        st.caption("Parâmetros para cálculo de paridades de etanol")
+        st.info("Seção será preenchida conforme desenvolvimento das paridades de etanol")
 
 # ============================================================================
 # CÁLCULOS
 # ============================================================================
 
-# BLOCO 1
-inputs_bloco1 = {
-    'preco_anidro_fob_usd': preco_anidro_fob_usd,
+# Prepara inputs
+inputs_acucar_vhp = {
+    'acucar_ny_cents_lb': acucar_ny_cents_lb,
+    'premio_desconto': premio_desconto_vhp,
+    'premio_pol': premio_pol_vhp,
+    'custo_terminal_usd_ton': custo_terminal_vhp_usd_ton,
+    'frete_brl_ton': frete_vhp_brl_ton,
+}
+
+globais = {
     'cambio_brl_usd': cambio_brl_usd,
-    'frete_porto_usina_brl': frete_porto_usina_brl_bloco1,
-    'terminal_brl': terminal_brl_bloco1,
-    'supervisao_documentos_brl': supervisao_documentos_brl_bloco1,
-    'custos_adicionais_demurrage': custos_adicionais_demurrage_bloco1,
+    'custo_terminal_usd_ton': custo_terminal_vhp_usd_ton,
+    'frete_santos_usina_brl_ton': frete_santos_usina_brl_ton,
+    'frete_brl_ton': frete_vhp_brl_ton,
+    'custo_fobizacao_container_brl_ton': custo_fobizacao_container_brl_ton,
+    'custo_vhp_para_cristal': custo_vhp_para_cristal,
 }
-result_bloco1 = calc_anidro_exportacao(inputs_bloco1, globais)
 
-# BLOCO 2
-inputs_bloco2 = {
-    'preco_hidratado_fob_usd': preco_hidratado_fob_usd,
-    'cambio_brl_usd': cambio_brl_usd,
-    'frete_porto_usina_brl': frete_porto_usina_brl_bloco1,
-    'terminal_brl': terminal_brl_bloco1,
-    'supervisao_documentos_brl': supervisao_documentos_brl_bloco1,
-}
-result_bloco2 = calc_hidratado_exportacao(inputs_bloco2, globais)
+# Executa cálculos
+result_acucar_vhp = calc_acucar_vhp_detalhado(inputs_acucar_vhp, globais)
 
-# BLOCO 4 (precisa ser calculado antes do BLOCO 3)
-inputs_bloco4 = {
-    'preco_hidratado_rp_com_impostos': preco_hidratado_rp_com_impostos,
-    'pis_cofins': pis_cofins_hidratado,
-    'icms': icms,
-    'contribuicao_agroindustria': contribuicao_agroindustria_hidratado,
-    'valor_cbio_bruto': valor_cbio_bruto_hidratado,
-    'premio_fisico_pvu': premio_fisico_pvu,
-    'fobizacao_container_brl_ton': fobizacao_container_brl_ton,
+# Prepara inputs para açúcar cristal ESALQ
+inputs_acucar_cristal_esalq = {
+    'preco_esalq_brl_saca': preco_esalq_brl_saca,
+    'imposto': imposto_esalq,
+    'frete_santos_usina_brl_ton': frete_santos_usina_brl_ton,
+    'custo_fobizacao_container_brl_ton': custo_fobizacao_container_brl_ton,
+    'custo_vhp_para_cristal': custo_vhp_para_cristal,
 }
-result_bloco4 = calc_hidratado_mi(inputs_bloco4, {}, globais)
 
-# BLOCO 3 (depende de equivalente_anidro e preco_liquido_pvu_hidratado do BLOCO 4)
-deps_bloco3 = {
-    'equivalente_anidro': result_bloco4['values'].get('equivalente_anidro'),
-    'preco_liquido_pvu_hidratado': result_bloco4['values'].get('preco_liquido_pvu'),
-}
-inputs_bloco3 = {
-    'preco_anidro_com_impostos': preco_anidro_com_impostos,
-    'pis_cofins': pis_cofins,
-    'contribuicao_agroindustria': contribuicao_agroindustria,
-    'valor_cbio_bruto': valor_cbio_bruto,
-}
-result_bloco3 = calc_anidro_mi(inputs_bloco3, deps_bloco3, globais)
+# Executa cálculo do açúcar cristal ESALQ
+result_acucar_cristal_esalq = calc_acucar_cristal_esalq(inputs_acucar_cristal_esalq, globais)
 
-# BLOCO 5
-inputs_bloco5 = {
-    'sugar_ny_fob_cents_lb': sugar_ny_fob_cents_lb,
-    'premio_desconto_cents_lb': premio_desconto_cents_lb,
-    'premio_pol': premio_pol,
-    'esalq_brl_saca': esalq_brl_saca,
-    'impostos_esalq': impostos_esalq,
-    'premio_fisico_pvu': premio_fisico_pvu,
-    'premio_fisico_fob': premio_fisico_fob,
-    'premio_fisico_malha30': premio_fisico_malha30,
-    'fobizacao_container_brl_ton_o31': fobizacao_container_brl_ton_o31,
-    'frete_brl_ton_o32': frete_brl_ton_o32,
+# Prepara inputs para custo de comercialização açúcar cristal MI
+inputs_paridade_mi_ny = {
+    'acucar_ny_cents_lb': acucar_ny_cents_lb,  # Usa o mesmo valor do açúcar VHP
+    'premio_fisico_mi': premio_fisico_mi,
 }
-result_bloco5 = calc_acucar(inputs_bloco5, globais)
+
+# Executa cálculo do custo de comercialização açúcar cristal MI
+result_paridade_mi_ny = calc_paridade_comercializacao_mi_ny(inputs_paridade_mi_ny, globais)
+
+# Prepara inputs para açúcar cristal exportação
+inputs_acucar_cristal_exportacao = {
+    'acucar_ny_cents_lb': acucar_ny_cents_lb,  # Usa o mesmo valor do açúcar VHP
+    'premio_fisico_exportacao': premio_fisico_exportacao,
+}
+
+# Executa cálculo do açúcar cristal exportação
+result_acucar_cristal_exportacao = calc_acucar_cristal_exportacao(inputs_acucar_cristal_exportacao, globais)
 
 # ============================================================================
 # EXIBIÇÃO DOS RESULTADOS
 # ============================================================================
 
-st.title("📊 Análise de Paridade de Produtos")
-st.caption("Compare todas as rotas de produção para identificar a mais atrativa")
+st.title("🍬 Paridade de Produtos")
+st.caption("Análise comparativa de equivalentes")
 
-# Erros
-all_errors = (
-    result_bloco1.get('errors', []) +
-    result_bloco2.get('errors', []) +
-    result_bloco3.get('errors', []) +
-    result_bloco4.get('errors', []) +
-    result_bloco5.get('errors', [])
-)
+# Exibe erros se houver
+all_errors = (result_acucar_vhp.get('errors', []) + 
+              result_acucar_cristal_esalq.get('errors', []) +
+              result_paridade_mi_ny.get('errors', []) +
+              result_acucar_cristal_exportacao.get('errors', []))
 if all_errors:
     st.error("⚠️ Erros encontrados:")
     for error in all_errors:
         st.write(f"- {error}")
 
-# ============================================================================
-# SEÇÃO DE DECISÃO - COMPARAÇÃO CLARA
-# ============================================================================
-
-st.header("🎯 Decisão: Qual Rota Produzir?")
-
-# Coleta todos os valores VHP PVU em BRL/saca para comparação
-rotas_comparacao = []
-
-# Anidro Exportação
-vhp_saca_anidro_exp = result_bloco1['values'].get('vhp_brl_saca_pvu')
-if vhp_saca_anidro_exp is not None:
-    rotas_comparacao.append({
-        'rota': 'Anidro Exportação',
-        'vhp_pvu_brl_saca': vhp_saca_anidro_exp,
-        'vhp_pvu_cents_lb': result_bloco1['values'].get('vhp_cents_lb_pvu'),
-        'vhp_fob_cents_lb': result_bloco1['values'].get('vhp_cents_lb_fob'),
-    })
-
-# Hidratado Exportação
-vhp_saca_hidratado_exp = result_bloco2['values'].get('vhp_brl_saca_pvu')
-if vhp_saca_hidratado_exp is not None:
-    rotas_comparacao.append({
-        'rota': 'Hidratado Exportação',
-        'vhp_pvu_brl_saca': vhp_saca_hidratado_exp,
-        'vhp_pvu_cents_lb': result_bloco2['values'].get('vhp_cents_lb_pvu'),
-        'vhp_fob_cents_lb': result_bloco2['values'].get('vhp_cents_lb_fob'),
-    })
-
-# Anidro Mercado Interno
-vhp_saca_anidro_mi = result_bloco3['values'].get('vhp_brl_saco_pvu')
-if vhp_saca_anidro_mi is not None:
-    rotas_comparacao.append({
-        'rota': 'Anidro Mercado Interno',
-        'vhp_pvu_brl_saca': vhp_saca_anidro_mi,
-        'vhp_pvu_cents_lb': result_bloco3['values'].get('vhp_cents_lb_pvu'),
-        'vhp_fob_cents_lb': result_bloco3['values'].get('vhp_cents_lb_fob'),
-    })
-
-# Hidratado Mercado Interno
-vhp_saca_hidratado_mi = result_bloco4['values'].get('vhp_brl_saco_pvu')
-if vhp_saca_hidratado_mi is not None:
-    rotas_comparacao.append({
-        'rota': 'Hidratado Mercado Interno',
-        'vhp_pvu_brl_saca': vhp_saca_hidratado_mi,
-        'vhp_pvu_cents_lb': result_bloco4['values'].get('vhp_cents_lb_pvu'),
-        'vhp_fob_cents_lb': result_bloco4['values'].get('vhp_cents_lb_fob'),
-    })
-
-# Açúcar - VHP Exportação
-vhp_saca_acucar_vhp = result_bloco5['values'].get('vhp_brl_saca_pvu')
-if vhp_saca_acucar_vhp is not None:
-    rotas_comparacao.append({
-        'rota': 'Açúcar VHP Exportação',
-        'vhp_pvu_brl_saca': vhp_saca_acucar_vhp,
-        'vhp_pvu_cents_lb': result_bloco5['values'].get('vhp_cents_lb_pvu'),
-        'vhp_fob_cents_lb': result_bloco5['values'].get('vhp_cents_lb_fob'),
-    })
-
-# Açúcar - Cristal Esalq
-vhp_saca_esalq = result_bloco5['values'].get('vhp_brl_saco_pvu_esalq')
-if vhp_saca_esalq is not None:
-    rotas_comparacao.append({
-        'rota': 'Açúcar Cristal Esalq',
-        'vhp_pvu_brl_saca': vhp_saca_esalq,
-        'vhp_pvu_cents_lb': result_bloco5['values'].get('vhp_cents_lb_pvu_esalq'),
-        'vhp_fob_cents_lb': result_bloco5['values'].get('vhp_cents_lb_fob_esalq'),
-    })
-
-# Açúcar - Cristal Mercado Interno
-vhp_saca_mi = result_bloco5['values'].get('vhp_brl_saco_pvu_mi')
-if vhp_saca_mi is not None:
-    rotas_comparacao.append({
-        'rota': 'Açúcar Cristal Mercado Interno',
-        'vhp_pvu_brl_saca': vhp_saca_mi,
-        'vhp_pvu_cents_lb': result_bloco5['values'].get('vhp_cents_lb_pvu_mi'),
-        'vhp_fob_cents_lb': result_bloco5['values'].get('vhp_cents_lb_fob_mi'),
-    })
-
-# Açúcar - Cristal Exportação
-vhp_saca_exp = result_bloco5['values'].get('vhp_brl_saco_pvu_exp')
-if vhp_saca_exp is not None:
-    rotas_comparacao.append({
-        'rota': 'Açúcar Cristal Exportação',
-        'vhp_pvu_brl_saca': vhp_saca_exp,
-        'vhp_pvu_cents_lb': result_bloco5['values'].get('vhp_cents_lb_pvu_exp'),
-        'vhp_fob_cents_lb': result_bloco5['values'].get('vhp_cents_lb_fob_exp'),
-    })
-
-# Açúcar - Cristal Exportação Malha 30
-vhp_saca_malha30 = result_bloco5['values'].get('vhp_brl_saco_pvu_malha30')
-if vhp_saca_malha30 is not None:
-    rotas_comparacao.append({
-        'rota': 'Açúcar Cristal Exportação Malha 30',
-        'vhp_pvu_brl_saca': vhp_saca_malha30,
-        'vhp_pvu_cents_lb': result_bloco5['values'].get('vhp_cents_lb_pvu_malha30'),
-        'vhp_fob_cents_lb': result_bloco5['values'].get('vhp_cents_lb_fob_malha30'),
-    })
-
-# Ordena por VHP PVU BRL/saca (maior primeiro)
-rotas_comparacao.sort(key=lambda x: x['vhp_pvu_brl_saca'] if x['vhp_pvu_brl_saca'] is not None else float('-inf'), reverse=True)
-
-# Exibe top 3
-if rotas_comparacao:
-    st.subheader("🏆 Top 3 Rotas Mais Atrativas (VHP PVU BRL/saca)")
-    col1, col2, col3 = st.columns(3)
+# Exibe resultados se houver
+if result_acucar_vhp.get('values'):
+    valores_vhp = result_acucar_vhp['values']
     
-    for idx, rota in enumerate(rotas_comparacao[:3]):
-        col = [col1, col2, col3][idx]
-        with col:
-            st.metric(
-                label=rota['rota'],
-                value=fmt_br(rota['vhp_pvu_brl_saca']),
-                delta=None
-            )
-            st.caption(f"PVU: {fmt_br(rota['vhp_pvu_cents_lb'])} cents/lb")
-            st.caption(f"FOB: {fmt_br(rota['vhp_fob_cents_lb'])} cents/lb")
-
-# Tabela comparativa completa
-st.subheader("📋 Comparação Completa de Todas as Rotas")
-df_comparacao = pd.DataFrame(rotas_comparacao)
-if not df_comparacao.empty:
-    df_comparacao['VHP PVU (BRL/saca)'] = df_comparacao['vhp_pvu_brl_saca'].apply(lambda x: fmt_br(x))
-    df_comparacao['VHP PVU (cents/lb)'] = df_comparacao['vhp_pvu_cents_lb'].apply(lambda x: fmt_br(x))
-    df_comparacao['VHP FOB (cents/lb)'] = df_comparacao['vhp_fob_cents_lb'].apply(lambda x: fmt_br(x))
-    df_display = df_comparacao[['rota', 'VHP PVU (BRL/saca)', 'VHP PVU (cents/lb)', 'VHP FOB (cents/lb)']].copy()
-    df_display.columns = ['Rota', 'VHP PVU (BRL/saca)', 'VHP PVU (cents/lb)', 'VHP FOB (cents/lb)']
-    st.dataframe(df_display, use_container_width=True, hide_index=True)
-
-st.divider()
-
-# ============================================================================
-# DETALHES POR BLOCO (em abas para não amontoar)
-# ============================================================================
-
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    "🚢 Etanol Exportação",
-    "🏠 Etanol Mercado Interno",
-    "🍬 Açúcar",
-    "📊 Tabelas Resumo",
-    "🗺️ Mapa Células"
-])
-
-with tab1:
-    st.subheader("Anidro Exportação")
-    values1 = result_bloco1['values']
-    col1, col2 = st.columns(2)
-    col1.metric("Preço Líquido PVU", fmt_br(values1.get('preco_liquido_pvu')))
-    col2.metric("VHP BRL/saca PVU", fmt_br(values1.get('vhp_brl_saca_pvu')))
-    col1, col2 = st.columns(2)
-    col1.metric("VHP Cents/lb PVU", fmt_br(values1.get('vhp_cents_lb_pvu')))
-    col2.metric("VHP Cents/lb FOB", fmt_br(values1.get('vhp_cents_lb_fob')))
+    # Seção Açúcar VHP
+    st.header("🍬 Açúcar VHP")
     
-    st.subheader("Hidratado Exportação")
-    values2 = result_bloco2['values']
-    col1, col2 = st.columns(2)
-    col1.metric("Preço Líquido PVU", fmt_br(values2.get('preco_liquido_pvu')))
-    col2.metric("VHP BRL/saca PVU", fmt_br(values2.get('vhp_brl_saca_pvu')))
-    col1, col2 = st.columns(2)
-    col1.metric("VHP Cents/lb PVU", fmt_br(values2.get('vhp_cents_lb_pvu')))
-    col2.metric("VHP Cents/lb FOB", fmt_br(values2.get('vhp_cents_lb_fob')))
-
-with tab2:
-    st.subheader("Anidro Mercado Interno")
-    values3 = result_bloco3['values']
-    col1, col2 = st.columns(2)
-    col1.metric("Preço Líquido PVU", fmt_br(values3.get('preco_liquido_pvu')))
-    col2.metric("PVU + CBIO", fmt_br(values3.get('preco_pvu_mais_cbio')))
-    col1, col2 = st.columns(2)
-    col1.metric("VHP BRL/saco PVU", fmt_br(values3.get('vhp_brl_saco_pvu')))
-    col2.metric("VHP Cents/lb PVU", fmt_br(values3.get('vhp_cents_lb_pvu')))
-    col1, col2 = st.columns(2)
-    col1.metric("VHP Cents/lb FOB", fmt_br(values3.get('vhp_cents_lb_fob')))
-    col2.metric("Prêmio Anidro/Hidratado Líquido", fmt_br(values3.get('premio_anidro_hidratado_liquido')))
-    
-    st.subheader("Hidratado Mercado Interno")
-    values4 = result_bloco4['values']
-    col1, col2 = st.columns(2)
-    col1.metric("Preço Líquido PVU", fmt_br(values4.get('preco_liquido_pvu')))
-    col2.metric("PVU + CBIO", fmt_br(values4.get('preco_pvu_mais_cbio')))
-    col1, col2 = st.columns(2)
-    col1.metric("VHP BRL/saco PVU", fmt_br(values4.get('vhp_brl_saco_pvu')))
-    col2.metric("VHP Cents/lb PVU", fmt_br(values4.get('vhp_cents_lb_pvu')))
-    col1, col2 = st.columns(2)
-    col1.metric("VHP Cents/lb FOB", fmt_br(values4.get('vhp_cents_lb_fob')))
-    col2.metric("Cristal BRL/saca PVU", fmt_br(values4.get('cristal_brl_saca_pvu')))
-
-with tab3:
-    values5 = result_bloco5['values']
-    
-    st.subheader("Sugar VHP")
-    col1, col2, col3 = st.columns(3)
-    col1.metric("VHP BRL/saca PVU", fmt_br(values5.get('vhp_brl_saca_pvu')))
-    col2.metric("VHP Cents/lb PVU", fmt_br(values5.get('vhp_cents_lb_pvu')))
-    col3.metric("VHP Cents/lb FOB", fmt_br(values5.get('vhp_cents_lb_fob')))
-    
-    st.subheader("Cristal Esalq")
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("VHP BRL/saco PVU", fmt_br(values5.get('vhp_brl_saco_pvu_esalq')))
-    col2.metric("VHP Cents/lb PVU", fmt_br(values5.get('vhp_cents_lb_pvu_esalq')))
-    col3.metric("VHP Cents/lb FOB", fmt_br(values5.get('vhp_cents_lb_fob_esalq')))
-    col4.metric("Cristal BRL/saca PVU", fmt_br(values5.get('cristal_brl_saca_pvu_esalq')))
-    
-    st.subheader("Cristal Mercado Interno")
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("VHP BRL/saco PVU", fmt_br(values5.get('vhp_brl_saco_pvu_mi')))
-    col2.metric("VHP Cents/lb PVU", fmt_br(values5.get('vhp_cents_lb_pvu_mi')))
-    col3.metric("VHP Cents/lb FOB", fmt_br(values5.get('vhp_cents_lb_fob_mi')))
-    col4.metric("Cristal BRL/saca PVU", fmt_br(values5.get('cristal_brl_saca_pvu_mi')))
-    
-    st.subheader("Cristal Exportação")
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("VHP BRL/saco PVU", fmt_br(values5.get('vhp_brl_saco_pvu_exp')))
-    col2.metric("VHP Cents/lb PVU", fmt_br(values5.get('vhp_cents_lb_pvu_exp')))
-    col3.metric("VHP Cents/lb FOB", fmt_br(values5.get('vhp_cents_lb_fob_exp')))
-    col4.metric("Cristal BRL/saca PVU", fmt_br(values5.get('cristal_brl_saca_pvu_exp')))
-    
-    st.subheader("Cristal Exportação Malha 30")
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("VHP BRL/saco PVU", fmt_br(values5.get('vhp_brl_saco_pvu_malha30')))
-    col2.metric("VHP Cents/lb PVU", fmt_br(values5.get('vhp_cents_lb_pvu_malha30')))
-    col3.metric("VHP Cents/lb FOB", fmt_br(values5.get('vhp_cents_lb_fob_malha30')))
-    col4.metric("Cristal BRL/saca PVU", fmt_br(values5.get('cristal_brl_saca_pvu_malha30')))
-
-with tab4:
-    st.subheader("PVU BRL/saca")
-    col1, col2, col3, col4, col5, col6 = st.columns(6)
-    col1.metric("Cristal Esalq", fmt_br(values5.get('vhp_brl_saco_pvu_esalq')))
-    col2.metric("Cristal Malha 30", fmt_br(values5.get('vhp_brl_saco_pvu_malha30')))
-    col3.metric("Anidro MI", fmt_br(values3.get('vhp_brl_saco_pvu')))
-    col4.metric("Cristal Export", fmt_br(values5.get('vhp_brl_saco_pvu_exp')))
-    col5.metric("VHP Export", fmt_br(values5.get('vhp_brl_saca_pvu')))
-    col6.metric("Hidratado MI", fmt_br(values4.get('vhp_brl_saco_pvu')))
-    
-    st.subheader("FOB Cents/lb")
-    col1, col2, col3, col4, col5, col6 = st.columns(6)
-    col1.metric("Cristal Esalq", fmt_br(values5.get('vhp_cents_lb_fob_esalq')))
-    col2.metric("Cristal Malha 30", fmt_br(values5.get('vhp_cents_lb_fob_malha30')))
-    col3.metric("Cristal Export", fmt_br(values5.get('vhp_cents_lb_fob_exp')))
-    col4.metric("Anidro MI", fmt_br(values3.get('vhp_cents_lb_fob')))
-    col5.metric("VHP Export", fmt_br(values5.get('vhp_cents_lb_fob')))
-    col6.metric("Hidratado MI", fmt_br(values4.get('vhp_cents_lb_fob')))
-
-with tab5:
-    st.subheader("Mapeamento completo de células para variáveis")
-    
-    all_meta = {
-        "BLOCO 1": result_bloco1['meta']['celulas'],
-        "BLOCO 2": result_bloco2['meta']['celulas'],
-        "BLOCO 3": result_bloco3['meta']['celulas'],
-        "BLOCO 4": result_bloco4['meta']['celulas'],
-        "BLOCO 5": result_bloco5['meta']['celulas'],
+    # Container estilizado para as equivalências
+    st.markdown("""
+    <style>
+    .equivalencia-container {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        margin: 1.5rem 0;
     }
+    .equivalencia-card {
+        border-left: 4px solid;
+        padding: 1.25rem 1.5rem;
+        border-radius: 6px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .equivalencia-card-red {
+        border-left-color: #dc3545;
+    }
+    .equivalencia-card-green {
+        border-left-color: #28a745;
+    }
+    .equivalencia-card-dark {
+        border-left-color: #0d6efd;
+    }
+    .equivalencia-label {
+        font-size: 1rem;
+        font-weight: 500;
+        flex: 1;
+    }
+    .equivalencia-label-red {
+        color: #dc3545;
+    }
+    .equivalencia-label-green {
+        color: #28a745;
+    }
+    .equivalencia-label-dark {
+        color: #0d6efd;
+    }
+    .equivalencia-value {
+        font-size: 1.75rem;
+        font-weight: bold;
+        margin-left: 1.5rem;
+    }
+    .equivalencia-value-red {
+        color: #dc3545;
+    }
+    .equivalencia-value-green {
+        color: #28a745;
+    }
+    .equivalencia-value-dark {
+        color: #0d6efd;
+    }
+    </style>
+    """, unsafe_allow_html=True)
     
-    for bloco, celulas in all_meta.items():
-        st.write(f"**{bloco}**")
-        df = pd.DataFrame([
-            {"Célula": celula, "Variável": variavel}
-            for variavel, celula in celulas.items()
-        ])
-        st.dataframe(df, use_container_width=True, hide_index=True)
+    # Equivalências em formato de cartões
+    st.markdown("""
+    <div class="equivalencia-container">
+        <div class="equivalencia-card equivalencia-card-red">
+            <div class="equivalencia-label equivalencia-label-red">Equivalente VHP BRL/saca PVU</div>
+            <div class="equivalencia-value equivalencia-value-red">R$ {}</div>
+        </div>
+        <div class="equivalencia-card equivalencia-card-green">
+            <div class="equivalencia-label equivalencia-label-green">Equivalente VHP Cents/lb PVU</div>
+            <div class="equivalencia-value equivalencia-value-green">{} c/lb</div>
+        </div>
+        <div class="equivalencia-card equivalencia-card-dark">
+            <div class="equivalencia-label equivalencia-label-dark">Equivalente VHP Cents/lb FOB</div>
+            <div class="equivalencia-value equivalencia-value-dark">{} c/lb</div>
+        </div>
+    </div>
+    """.format(
+        fmt_br(valores_vhp.get('equivalente_vhp_reais_saca_pvu', 0)),
+        fmt_br(valores_vhp.get('equivalente_vhp_cents_lb_pvu', 0)),
+        fmt_br(valores_vhp.get('equivalente_vhp_cents_lb_fob', 0))
+    ), unsafe_allow_html=True)
+    
+    st.divider()
+    
+    # Seção Açúcar Cristal ESALQ
+    if result_acucar_cristal_esalq.get('values'):
+        valores_esalq = result_acucar_cristal_esalq['values']
+        
+        st.header("🍬 Açúcar Cristal ESALQ")
+        
+        # Equivalências em formato de cartões
+        st.markdown("""
+        <div class="equivalencia-container">
+            <div class="equivalencia-card equivalencia-card-red">
+                <div class="equivalencia-label equivalencia-label-red">Equivalente VHP BRL/saca PVU</div>
+                <div class="equivalencia-value equivalencia-value-red">R$ {}</div>
+            </div>
+            <div class="equivalencia-card equivalencia-card-green">
+                <div class="equivalencia-label equivalencia-label-green">Equivalente VHP Cents/lb PVU</div>
+                <div class="equivalencia-value equivalencia-value-green">{} c/lb</div>
+            </div>
+            <div class="equivalencia-card equivalencia-card-dark">
+                <div class="equivalencia-label equivalencia-label-dark">Equivalente VHP Cents/lb FOB</div>
+                <div class="equivalencia-value equivalencia-value-dark">{} c/lb</div>
+            </div>
+            <div class="equivalencia-card equivalencia-card-red">
+                <div class="equivalencia-label equivalencia-label-red">Equivalente Cristal R$/saca PVU</div>
+                <div class="equivalencia-value equivalencia-value-red">R$ {}</div>
+            </div>
+            <div class="equivalencia-card equivalencia-card-green">
+                <div class="equivalencia-label equivalencia-label-green">Equivalente Cristal c/lb PVU</div>
+                <div class="equivalencia-value equivalencia-value-green">{} c/lb</div>
+            </div>
+            <div class="equivalencia-card equivalencia-card-dark">
+                <div class="equivalencia-label equivalencia-label-dark">Equivalente Cristal Cents/lb FOB</div>
+                <div class="equivalencia-value equivalencia-value-dark">{} c/lb</div>
+            </div>
+        </div>
+        """.format(
+            fmt_br(valores_esalq.get('equivalente_vhp_reais_saca_pvu', 0)),
+            fmt_br(valores_esalq.get('equivalente_vhp_cents_lb_pvu', 0)),
+            fmt_br(valores_esalq.get('equivalente_vhp_cents_lb_fob', 0)),
+            fmt_br(valores_esalq.get('equivalente_cristal_reais_saca_pvu', 0)),
+            fmt_br(valores_esalq.get('equivalente_cristal_cents_lb_pvu', 0)),
+            fmt_br(valores_esalq.get('equivalente_cristal_cents_lb_fob', 0))
+        ), unsafe_allow_html=True)
+        
+        st.divider()
+    
+    # Seção Custo de Comercialização Açúcar Cristal MI
+    if result_paridade_mi_ny.get('values'):
+        valores_mi_ny = result_paridade_mi_ny['values']
+        
+        st.header("🍬 Custo de Comercialização Açúcar Cristal MI")
+        
+        # Equivalências em formato de cartões
+        st.markdown("""
+        <div class="equivalencia-container">
+            <div class="equivalencia-card equivalencia-card-red">
+                <div class="equivalencia-label equivalencia-label-red">Equivalente VHP BRL/saca PVU</div>
+                <div class="equivalencia-value equivalencia-value-red">R$ {}</div>
+            </div>
+            <div class="equivalencia-card equivalencia-card-green">
+                <div class="equivalencia-label equivalencia-label-green">Equivalente VHP Cents/lb PVU</div>
+                <div class="equivalencia-value equivalencia-value-green">{} c/lb</div>
+            </div>
+            <div class="equivalencia-card equivalencia-card-dark">
+                <div class="equivalencia-label equivalencia-label-dark">Equivalente VHP Cents/lb FOB</div>
+                <div class="equivalencia-value equivalencia-value-dark">{} c/lb</div>
+            </div>
+            <div class="equivalencia-card equivalencia-card-red">
+                <div class="equivalencia-label equivalencia-label-red">Equivalente Cristal R$/saca PVU</div>
+                <div class="equivalencia-value equivalencia-value-red">R$ {}</div>
+            </div>
+            <div class="equivalencia-card equivalencia-card-green">
+                <div class="equivalencia-label equivalencia-label-green">Equivalente Cristal c/lb PVU</div>
+                <div class="equivalencia-value equivalencia-value-green">{} c/lb</div>
+            </div>
+            <div class="equivalencia-card equivalencia-card-dark">
+                <div class="equivalencia-label equivalencia-label-dark">Equivalente Cristal Cents/lb FOB</div>
+                <div class="equivalencia-value equivalencia-value-dark">{} c/lb</div>
+            </div>
+        </div>
+        """.format(
+            fmt_br(valores_mi_ny.get('equivalente_vhp_reais_saca_pvu', 0)),
+            fmt_br(valores_mi_ny.get('equivalente_vhp_cents_lb_pvu', 0)),
+            fmt_br(valores_mi_ny.get('equivalente_vhp_cents_lb_fob', 0)),
+            fmt_br(valores_mi_ny.get('equivalente_cristal_reais_saca_pvu', 0)),
+            fmt_br(valores_mi_ny.get('equivalente_cristal_cents_lb_pvu', 0)),
+            fmt_br(valores_mi_ny.get('equivalente_cristal_cents_lb_fob', 0))
+        ), unsafe_allow_html=True)
+        
+        st.divider()
+    
+    # Seção Açúcar Cristal Exportação
+    if result_acucar_cristal_exportacao.get('values'):
+        valores_exportacao = result_acucar_cristal_exportacao['values']
+        
+        st.header("🍬 Açúcar Cristal Exportação")
+        
+        # Equivalências em formato de cartões
+        st.markdown("""
+        <div class="equivalencia-container">
+            <div class="equivalencia-card equivalencia-card-red">
+                <div class="equivalencia-label equivalencia-label-red">Equivalente VHP BRL/saca PVU</div>
+                <div class="equivalencia-value equivalencia-value-red">R$ {}</div>
+            </div>
+            <div class="equivalencia-card equivalencia-card-green">
+                <div class="equivalencia-label equivalencia-label-green">Equivalente VHP Cents/lb PVU</div>
+                <div class="equivalencia-value equivalencia-value-green">{} c/lb</div>
+            </div>
+            <div class="equivalencia-card equivalencia-card-dark">
+                <div class="equivalencia-label equivalencia-label-dark">Equivalente VHP Cents/lb FOB</div>
+                <div class="equivalencia-value equivalencia-value-dark">{} c/lb</div>
+            </div>
+            <div class="equivalencia-card equivalencia-card-red">
+                <div class="equivalencia-label equivalencia-label-red">Equivalente Cristal R$/saca PVU</div>
+                <div class="equivalencia-value equivalencia-value-red">R$ {}</div>
+            </div>
+            <div class="equivalencia-card equivalencia-card-green">
+                <div class="equivalencia-label equivalencia-label-green">Equivalente Cristal c/lb PVU</div>
+                <div class="equivalencia-value equivalencia-value-green">{} c/lb</div>
+            </div>
+            <div class="equivalencia-card equivalencia-card-dark">
+                <div class="equivalencia-label equivalencia-label-dark">Equivalente Cristal Cents/lb FOB</div>
+                <div class="equivalencia-value equivalencia-value-dark">{} c/lb</div>
+            </div>
+        </div>
+        """.format(
+            fmt_br(valores_exportacao.get('equivalente_vhp_reais_saca_pvu', 0)),
+            fmt_br(valores_exportacao.get('equivalente_vhp_cents_lb_pvu', 0)),
+            fmt_br(valores_exportacao.get('equivalente_vhp_cents_lb_fob', 0)),
+            fmt_br(valores_exportacao.get('equivalente_cristal_reais_saca_pvu', 0)),
+            fmt_br(valores_exportacao.get('equivalente_cristal_cents_lb_pvu', 0)),
+            fmt_br(valores_exportacao.get('equivalente_cristal_cents_lb_fob', 0))
+        ), unsafe_allow_html=True)
+        
+        st.divider()
